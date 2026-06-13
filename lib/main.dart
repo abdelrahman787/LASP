@@ -1,15 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'firebase_options.dart';
 
-// NOTE (SWAP POINT 2 — Firebase): when wiring Firebase, this becomes:
-//   WidgetsFlutterBinding.ensureInitialized();
-//   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-//   FirebaseFirestore.instance.settings =
-//       const Settings(persistenceEnabled: true);
-// (DefaultFirebaseOptions comes from the firebase_options.dart that
-//  `flutterfire configure` generates.)
-void main() {
+// SWAP POINT 2 complete: Firebase is initialized here and Firestore offline
+// persistence is enabled, giving automatic offline-first sync (no custom sync
+// code). Auth/Firestore data lives under users/<uid>/... (see firestore.rules).
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  FirebaseFirestore.instance.settings =
+      const Settings(persistenceEnabled: true);
   runApp(const ProviderScope(child: QuranTasmee3App()));
 }

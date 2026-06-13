@@ -41,6 +41,11 @@ class DashboardScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
+          IconButton(
+            tooltip: 'تسجيل الخروج',
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(authServiceProvider).signOut(),
+          ),
         ],
       ),
       body: RefreshIndicator(

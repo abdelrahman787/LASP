@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers.dart';
 import 'theme.dart';
-import '../features/dashboard/dashboard_screen.dart';
+import '../features/auth/auth_gate.dart';
 
 class QuranTasmee3App extends ConsumerWidget {
   const QuranTasmee3App({super.key});
@@ -22,7 +22,7 @@ class QuranTasmee3App extends ConsumerWidget {
         textDirection: TextDirection.rtl,
         child: child!,
       ),
-      home: const DashboardScreen(),
+      home: const AuthGate(),
     );
   }
 }

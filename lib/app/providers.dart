@@ -10,7 +10,9 @@ import 'package:quran_tasmee3_core/review/review_service.dart';
 import 'package:quran_tasmee3_core/review/scheduler.dart';
 import 'package:quran_tasmee3_core/review/settings.dart';
 
+import 'data/auth_service.dart';
 import 'data/fake_data.dart';
+import 'data/firestore_repositories.dart';
 import 'data/groq_asr_service.dart';
 import 'data/quran_repository.dart';
 
@@ -30,54 +32,76 @@ final clockProvider = Provider<int Function()>(
 /// Day/night theme selection.
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
+// --- Auth (Firebase email/password) ------------------------------------------
+final authServiceProvider = Provider<AuthService>((ref) {
+  // Tests override this with FakeAuthService so Firebase is never touched.
+  return FirebaseAuthService();
+});
+
+/// Current auth state; the app gates on this.
+final authStateProvider = StreamProvider<AppUser?>((ref) {
+  return ref.watch(authServiceProvider).authState();
+});
+
+/// Signed-in uid, or null. Firestore repos scope to it.
+final uidProvider = Provider<String?>((ref) {
+  return ref.watch(authStateProvider).valueOrNull?.uid;
+});
+
 // --- External dependency #1: ASR (Cloudflare Worker + Groq) ------------------
 
 /// Deployed Cloudflare Worker (Groq ASR proxy). Used by [GroqAsrService].
 const String kWorkerUrl =
     'https://quran-tasmee3-backend.abdelrahman-khamis.workers.dev';
 
-/// SWAP POINT 1 — flip to `true` to use the REAL [GroqAsrService] (mic +
-/// Worker upload). Kept `false` so the app runs on an emulator without a mic
-/// and tests stay deterministic.
-///
-/// NOTE: until SWAP POINT 2 (Firebase) supplies a real ID token, the Worker
-/// will reject real calls with 401 — the service handles that gracefully as a
-/// silent "audio unclear", it won't crash. Wire `idTokenProvider` below to
-/// `() => FirebaseAuth.instance.currentUser?.getIdToken()` when Firebase lands.
-const bool kUseRealAsr = false;
+/// SWAP POINT 1 — REAL [GroqAsrService] (mic + Worker upload) is now active.
+/// The Firebase ID token (SWAP POINT 2) is wired via `idTokenProvider` below.
+/// Tests override `asrServiceProvider` with a fake, so this flag only affects
+/// the running app.
+const bool kUseRealAsr = true;
 
 final asrServiceProvider = Provider<AsrService>((ref) {
   if (kUseRealAsr) {
     final mode = ref.watch(settingsProvider).valueOrNull?.defaultMode.name ??
         'normal';
+    final auth = ref.watch(authServiceProvider);
     return GroqAsrService(
       workerUrl: kWorkerUrl,
       mode: mode,
-      // idTokenProvider: () => FirebaseAuth.instance.currentUser?.getIdToken(),
+      idTokenProvider: auth.idToken, // SWAP POINT 2 complete
     );
   }
   return FakeAsrService();
 });
 
 // --- External dependency #2: persistence (Firebase Firestore) ----------------
+// SWAP POINT 2 complete: Firestore-backed when signed in (data under
+// users/<uid>/...); in-memory fallback when signed out so nothing touches
+// Firebase before login.
 final weakItemRepositoryProvider = Provider<WeakItemRepository>((ref) {
-  // SWAP POINT 2 (Firebase): return FirestoreWeakItemRepository(uid);
-  return InMemoryWeakItemRepository();
+  final uid = ref.watch(uidProvider);
+  return uid == null
+      ? InMemoryWeakItemRepository()
+      : FirestoreWeakItemRepository(uid);
 });
 
 final planRepositoryProvider = Provider<PlanRepository>((ref) {
-  // SWAP POINT 2 (Firebase): return FirestorePlanRepository(uid);
-  return InMemoryPlanRepository();
+  final uid = ref.watch(uidProvider);
+  return uid == null ? InMemoryPlanRepository() : FirestorePlanRepository(uid);
 });
 
 final reviewHistoryRepositoryProvider = Provider<ReviewHistoryRepository>((ref) {
-  // SWAP POINT 2 (Firebase): return FirestoreReviewHistoryRepository(uid);
-  return InMemoryReviewHistoryRepository();
+  final uid = ref.watch(uidProvider);
+  return uid == null
+      ? InMemoryReviewHistoryRepository()
+      : FirestoreReviewHistoryRepository(uid);
 });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
-  // SWAP POINT 2 (Firebase) or local prefs: return FirestoreSettingsRepository(uid);
-  return InMemorySettingsRepository();
+  final uid = ref.watch(uidProvider);
+  return uid == null
+      ? InMemorySettingsRepository()
+      : FirestoreSettingsRepository(uid);
 });
 
 // --- External dependency #3: Quran data (Quran Foundation API → SQLite) ------
@@ -114,7 +138,7 @@ final planServiceProvider = Provider<PlanService>((ref) {
 class SettingsNotifier extends AsyncNotifier<UserSettings> {
   @override
   Future<UserSettings> build() =>
-      ref.read(settingsRepositoryProvider).get();
+      ref.watch(settingsRepositoryProvider).get();
 
   Future<void> save(UserSettings settings) async {
     state = const AsyncValue.loading();
