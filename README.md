@@ -35,6 +35,8 @@ Feature 4 (Review Plans spec, **Phases 0–1**).
 | `scheduler.dart` | `generatePlan` (priority ordering + contiguous-ayah merge), SM-2-lite `reschedule`, `dueToday` / `todaysQueue` / `upcoming`. |
 | `repositories.dart` | Swappable async `WeakItemRepository` / `PlanRepository` / `ReviewHistoryRepository` interfaces (Firestore later) + in-memory implementations. |
 | `review_service.dart` | Closes the loop: `rebuildAutoPlan`, `applyReview` (reschedule + history + mastery nudge), and `ingestSession` (roll a recitation session's confirmed errors into `weakItems`, ordered for plan generation). |
+| `settings.dart` | `UserSettings` (dailyTarget, defaultMode, weaknessThreshold, masteryHorizonDays, mergeContiguous) — the single source for the knobs once hardcoded in aggregation/scheduler — + `SettingsRepository` (in-memory now). |
+| `plan_service.dart` | Phase 5 manual management: `createCustomPlan` by `RangeType` (surah/juz/page/ayahRange) prioritized by weakness, `generateAutoPlan` (settings-driven), `snoozePlanItem`, `resetPlanItem`, `deletePlan`, plus an `AyahRangeResolver` seam (in-memory impl mirroring `QuranRepository`). |
 
 ## Run it
 
