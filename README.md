@@ -17,6 +17,9 @@ The heart of features 2 & 3 (Recitation Engine spec, **Phase 1**).
 | `distance.dart` | `levenshtein` (rolling-row DP) + `levRatio`. |
 | `recitation_config.dart` | Runtime-configurable mode thresholds — `easy` / `normal` / `strict`. |
 | `matching_engine.dart` | Stateless `matchUtterance`: context-replay absorption, longest-correct-prefix matching across ayah boundaries, and classification into `substitution` / `order` / `addition`, with `pronunciation` flags on low-confidence accepts. |
+| `asr_service.dart` | `AsrService` contract (real impl is mic/`dio` in the app) + scripted `FakeAsrService` for tests. |
+| `recitation_controller.dart` | The Phase 3 orchestrator: matching + injectable-clock silence timers (5s indicator / 10s direct forget, no auto-advance), attempt ladder (1 transient / 2 soft / 3+ confirmed), Reveal Next Word / Full Ayah (direct forgets), pronunciation flags, ASR-failure → unclear hint. |
+| `session_report.dart` | Phase 6 post-session report: five Arabic buckets (نسيان split silence/manual, استبدال, زيادة, خطأ ترتيب, نطق), session score penalizing only confirmed errors with a soft/confirmed breakdown, and per-ayah accuracy. |
 
 Locked decisions honored: Rule D dropped (longest-correct-prefix), context
 replay is not an error, `forget` is **not** produced here (it comes from the
@@ -30,6 +33,8 @@ Feature 4 (Review Plans spec, **Phases 0–1**).
 | `models.dart` | `WeakItem`, `WeakAyah`, `PlanItem`, `ReviewPlan`, `ReviewResult`. Timestamps are epoch ms; statuses serialize to `new\|due\|scheduled\|mastered`. |
 | `aggregation.dart` | Roll word-level weakness up to ayah level with a documented, configurable `recencyWeight`; threshold + confirmed-forget qualification. |
 | `scheduler.dart` | `generatePlan` (priority ordering + contiguous-ayah merge), SM-2-lite `reschedule`, `dueToday` / `todaysQueue` / `upcoming`. |
+| `repositories.dart` | Swappable async `WeakItemRepository` / `PlanRepository` / `ReviewHistoryRepository` interfaces (Firestore later) + in-memory implementations. |
+| `review_service.dart` | Closes the loop: `rebuildAutoPlan`, `applyReview` (reschedule + history + mastery nudge), and `ingestSession` (roll a recitation session's confirmed errors into `weakItems`, ordered for plan generation). |
 
 ## Run it
 
