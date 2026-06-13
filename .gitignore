@@ -2,14 +2,23 @@
 .dart_tool/
 .packages
 build/
-pubspec.lock
 .flutter-plugins
 .flutter-plugins-dependencies
+*.iml
+pubspec.lock
 
-# IDE
+# Flutter generated / ephemeral
+**/generated_plugin_registrant.dart
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/local.properties
+android/key.properties
 .idea/
 .vscode/
-*.iml
 
 # OS
 .DS_Store

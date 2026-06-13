@@ -1,14 +1,40 @@
-name: quran_tasmee3_core
+name: quran_tasmee3
 description: >-
-  Pure-Dart cores for the Quran Tasmee3 memorization app: the recitation
-  matching engine (Feature 2/3) and the review-plan spaced-repetition
-  scheduler (Feature 4). No Flutter or platform dependencies — these files
-  are consumed unchanged by the Flutter app and are fully unit-tested here.
+  Quran Tasmee3 — offline-first Quran memorization app. This is the Flutter
+  app shell wiring the pure-Dart cores (in packages/quran_tasmee3_core) into
+  Riverpod providers. It currently runs entirely on FAKE implementations of the
+  three external dependencies (ASR, Quran data, Firestore) so it compiles and
+  runs with no credentials. Each fake is swapped for a real implementation via
+  a single line in lib/app/providers.dart — see the "SWAP POINT" markers.
 publish_to: none
 version: 0.1.0
 
 environment:
   sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  quran_tasmee3_core:
+    path: packages/quran_tasmee3_core
+
+  # --- Added only when swapping in REAL implementations (kept out for now so
+  # the faked app needs no native setup / credentials to compile & run): ---
+  # firebase_core: ^3.6.0          # SWAP 2: Firebase
+  # firebase_auth: ^5.3.1          # SWAP 2: Firebase
+  # cloud_firestore: ^5.4.4        # SWAP 2: Firebase
+  # dio: ^5.7.0                    # SWAP 1: real ASR (Worker upload)
+  # record: ^5.1.2                 # SWAP 1: real ASR (mic capture)
+  # permission_handler: ^11.3.1    # SWAP 1: real ASR (mic permission)
+  # sqflite: ^2.3.3                # SWAP 3: bundled Quran SQLite
+  # flutter_local_notifications: ^17.2.3  # Review Plans Phase 6 reminders
 
 dev_dependencies:
-  test: ^1.25.0
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

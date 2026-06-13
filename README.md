@@ -1,14 +1,19 @@
-# Quran Tasmee3 — Pure-Dart Cores
+# Quran Tasmee3
 
-Quran Tasmee3 is a Flutter, offline-first Quran memorization app. This repo
-currently contains the two **pure-Dart, fully unit-tested cores** that the rest
-of the app builds on. They have **no Flutter, Firebase, ASR, or Quran-API
-dependencies**, so they run and test standalone today and drop into the Flutter
-app unchanged later.
+Quran Tasmee3 is a Flutter, offline-first Quran memorization app. The repo is a
+two-part workspace:
+
+- **`packages/quran_tasmee3_core/`** — the **pure-Dart, fully unit-tested cores**
+  (recitation matching engine + review-plan scheduler). No Flutter/Firebase/ASR/
+  Quran-API dependencies; runnable with plain `dart test`.
+- **`lib/` + `android/ios/web/`** — the **Flutter app shell** wiring those cores
+  into Riverpod providers. It runs end-to-end **entirely on fakes** today (no
+  credentials), and each external dependency swaps to a real implementation via a
+  single line in `lib/app/providers.dart` (see **Swapping in real services**).
 
 ## What's implemented
 
-### 1. Recitation matching engine — `lib/recitation/`
+### 1. Recitation matching engine — `packages/quran_tasmee3_core/lib/recitation/`
 The heart of features 2 & 3 (Recitation Engine spec, **Phase 1**).
 
 | File | Purpose |
@@ -25,7 +30,7 @@ Locked decisions honored: Rule D dropped (longest-correct-prefix), context
 replay is not an error, `forget` is **not** produced here (it comes from the
 silence timer / manual reveal in the controller, Phase 3).
 
-### 2. Review-plan scheduler — `lib/review/`
+### 2. Review-plan scheduler — `packages/quran_tasmee3_core/lib/review/`
 Feature 4 (Review Plans spec, **Phases 0–1**).
 
 | File | Purpose |
@@ -38,32 +43,49 @@ Feature 4 (Review Plans spec, **Phases 0–1**).
 | `settings.dart` | `UserSettings` (dailyTarget, defaultMode, weaknessThreshold, masteryHorizonDays, mergeContiguous) — the single source for the knobs once hardcoded in aggregation/scheduler — + `SettingsRepository` (in-memory now). |
 | `plan_service.dart` | Phase 5 manual management: `createCustomPlan` by `RangeType` (surah/juz/page/ayahRange) prioritized by weakness, `generateAutoPlan` (settings-driven), `snoozePlanItem`, `resetPlanItem`, `deletePlan`, plus an `AyahRangeResolver` seam (in-memory impl mirroring `QuranRepository`). |
 
+### 3. Flutter app shell — `lib/`
+
+| Path | Purpose |
+|------|---------|
+| `lib/main.dart` · `lib/app/app.dart` | Entry point + `MaterialApp` (RTL, day/night themes). |
+| `lib/app/providers.dart` | **All dependency injection** — every external dep bound to a fake with a `SWAP POINT` marker. |
+| `lib/app/data/quran_repository.dart` | `QuranRepository` seam + `FakeQuranRepository` (Al-Fatiha). |
+| `lib/features/dashboard/` | Today's review + weak-spots dashboard (Review Plans Phase 3). |
+| `lib/features/recitation/` | Recitation screen driving `RecitationController`; "simulate" buttons feed canned ASR so it runs without a mic. |
+| `lib/features/report/` | Post-session report screen (five buckets, score, per-ayah accuracy). |
+| `lib/features/plans/` | Plans list + custom-plan creation + per-item snooze/reset/delete (Phase 4/5). |
+| `lib/features/settings/` | Edit `UserSettings`. |
+
 ## Run it
 
 ```bash
-# one-time: get a Dart SDK (3.5+), then:
-dart pub get
-dart test            # 30 tests across both cores
-dart run example/demo.dart   # end-to-end loop on fake data
-dart analyze         # clean
+# Core (pure Dart — no Flutter needed):
+cd packages/quran_tasmee3_core
+dart pub get && dart test          # 69 tests
+dart run example/demo.dart         # closed-loop demo on fake data
+
+# Flutter app (runs fully on fakes, no credentials):
+cd ../..
+flutter pub get
+flutter test                       # widget smoke test
+flutter run                        # launches on a connected device/emulator
 ```
 
-`example/demo.dart` simulates the closed loop on a fake Al-Fatiha scope:
-recite → matching engine flags a substitution → weak item → aggregate →
-generate plan → review → reschedule.
+In the running app: tap **تسميع صفحة ١** → use the **محاكاة** (simulate) buttons
+to feed correct/wrong/unclear "recitations", or the reveal buttons — finishing
+produces the report and updates the dashboard's weak spots and the auto plan.
 
-## Not yet built (needs external setup — see the spec docs)
+## Swapping in real services
 
-These require accounts/secrets/assets that can't be provisioned from a sandbox:
+All three external dependencies are faked behind interfaces. To go live, change
+**one line per provider** in `lib/app/providers.dart`:
 
-- **Backend** (Firebase Auth + Firestore project on Spark, Cloudflare ASR
-  Worker) — see `01_backend_firebase_cloudflare.md`.
-- **Mushaf viewer Phase 0** (Quran Foundation API credentials, QCF V2 fonts,
-  seeded `quran_qcf_v2.sqlite`) — see `02_mushaf_viewer_1.md`.
-- The Flutter UI layers, `AsrService`, `RecitationController` (Phase 3+),
-  Firestore persistence, and the review dashboard/detail screens — all consume
-  the cores above through the contracts they already expose.
+| # | Provider (SWAP POINT) | Fake now | Real later | You provide |
+|---|------------------------|----------|------------|-------------|
+| 1 | `asrServiceProvider` | `FakeAsrService` | `GroqAsrService(workerUrl…)` | **Cloudflare Worker URL** |
+| 2 | `weakItem/plan/history/settingsRepositoryProvider` + `main.dart` init | in-memory repos | Firestore repos | **`firebase_options.dart`** (`flutterfire configure`) |
+| 3 | `quranRepositoryProvider` + `ayahRangeResolverProvider` | `FakeQuranRepository` / `InMemoryAyahRangeResolver` | SQLite-backed | **Quran Foundation API creds** → seeded `quran_qcf_v2.sqlite` + QCF V2 fonts |
 
-The cores were written against those documented contracts (`wordId =
+The pure-Dart cores were written against the documented contracts (`wordId =
 "<surah>:<ayah>:<wordIndex>"`, the `weakItems` document shape, epoch-ms
-timestamps) so they plug in without changes.
+timestamps), so the real implementations drop in without touching them.
