@@ -11,6 +11,7 @@ import 'package:quran_tasmee3_core/review/scheduler.dart';
 import 'package:quran_tasmee3_core/review/settings.dart';
 
 import 'data/fake_data.dart';
+import 'data/groq_asr_service.dart';
 import 'data/quran_repository.dart';
 
 // =============================================================================
@@ -30,9 +31,31 @@ final clockProvider = Provider<int Function()>(
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
 // --- External dependency #1: ASR (Cloudflare Worker + Groq) ------------------
+
+/// Deployed Cloudflare Worker (Groq ASR proxy). Used by [GroqAsrService].
+const String kWorkerUrl =
+    'https://quran-tasmee3-backend.abdelrahman-khamis.workers.dev';
+
+/// SWAP POINT 1 — flip to `true` to use the REAL [GroqAsrService] (mic +
+/// Worker upload). Kept `false` so the app runs on an emulator without a mic
+/// and tests stay deterministic.
+///
+/// NOTE: until SWAP POINT 2 (Firebase) supplies a real ID token, the Worker
+/// will reject real calls with 401 — the service handles that gracefully as a
+/// silent "audio unclear", it won't crash. Wire `idTokenProvider` below to
+/// `() => FirebaseAuth.instance.currentUser?.getIdToken()` when Firebase lands.
+const bool kUseRealAsr = false;
+
 final asrServiceProvider = Provider<AsrService>((ref) {
-  // SWAP POINT 1 (Cloudflare Worker URL):
-  //   return GroqAsrService(workerUrl: kWorkerUrl, idTokenProvider: ...);
+  if (kUseRealAsr) {
+    final mode = ref.watch(settingsProvider).valueOrNull?.defaultMode.name ??
+        'normal';
+    return GroqAsrService(
+      workerUrl: kWorkerUrl,
+      mode: mode,
+      // idTokenProvider: () => FirebaseAuth.instance.currentUser?.getIdToken(),
+    );
+  }
   return FakeAsrService();
 });
 

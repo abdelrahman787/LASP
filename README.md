@@ -82,7 +82,7 @@ All three external dependencies are faked behind interfaces. To go live, change
 
 | # | Provider (SWAP POINT) | Fake now | Real later | You provide |
 |---|------------------------|----------|------------|-------------|
-| 1 | `asrServiceProvider` | `FakeAsrService` | `GroqAsrService(workerUrl…)` | **Cloudflare Worker URL** |
+| 1 | `asrServiceProvider` | `FakeAsrService` | `GroqAsrService` ✅ **implemented** (mic via `record`, upload via `dio`, failure handling). Flip `kUseRealAsr = true`. | **Cloudflare Worker URL** ✅ wired (`kWorkerUrl`). Auth header still uses a placeholder token until SWAP 2. |
 | 2 | `weakItem/plan/history/settingsRepositoryProvider` + `main.dart` init | in-memory repos | Firestore repos | **`firebase_options.dart`** (`flutterfire configure`) |
 | 3 | `quranRepositoryProvider` + `ayahRangeResolverProvider` | `FakeQuranRepository` / `InMemoryAyahRangeResolver` | SQLite-backed | **Quran Foundation API creds** → seeded `quran_qcf_v2.sqlite` + QCF V2 fonts |
 

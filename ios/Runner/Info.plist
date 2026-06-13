@@ -66,5 +66,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- SWAP POINT 1 (real ASR): mic capture for recitation. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>يُستخدم الميكروفون للاستماع إلى التلاوة أثناء التسميع.</string>
 </dict>
 </plist>

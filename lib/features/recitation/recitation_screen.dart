@@ -108,19 +108,26 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     );
   }
 
+  /// The simulate buttons only apply to the fake ASR feed; with the real
+  /// [GroqAsrService] the mic drives the engine instead.
+  bool get _isFake => _asr is FakeAsrService;
+
   void _feedCorrect() {
+    final asr = _asr;
     final c = _controller.cursor;
-    if (c < _scope.length) {
-      (_asr as FakeAsrService).emit(AsrResult(_scope[c].display, 0.95));
+    if (asr is FakeAsrService && c < _scope.length) {
+      asr.emit(AsrResult(_scope[c].display, 0.95));
     }
   }
 
   void _feedWrong() {
-    (_asr as FakeAsrService).emit(const AsrResult('زقمون', 0.9));
+    final asr = _asr;
+    if (asr is FakeAsrService) asr.emit(const AsrResult('زقمون', 0.9));
   }
 
   void _feedUnclear() {
-    (_asr as FakeAsrService).emit(const AsrResult('', 0.0));
+    final asr = _asr;
+    if (asr is FakeAsrService) asr.emit(const AsrResult('', 0.0));
   }
 
   @override
@@ -179,18 +186,20 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
                   runSpacing: 8,
                   alignment: WrapAlignment.center,
                   children: [
-                    FilledButton.tonal(
-                      onPressed: _feedCorrect,
-                      child: const Text('محاكاة: نطق صحيح'),
-                    ),
-                    FilledButton.tonal(
-                      onPressed: _feedWrong,
-                      child: const Text('محاكاة: نطق خطأ'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _feedUnclear,
-                      child: const Text('محاكاة: صوت غير واضح'),
-                    ),
+                    if (_isFake) ...[
+                      FilledButton.tonal(
+                        onPressed: _feedCorrect,
+                        child: const Text('محاكاة: نطق صحيح'),
+                      ),
+                      FilledButton.tonal(
+                        onPressed: _feedWrong,
+                        child: const Text('محاكاة: نطق خطأ'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _feedUnclear,
+                        child: const Text('محاكاة: صوت غير واضح'),
+                      ),
+                    ],
                     OutlinedButton(
                       onPressed: () {
                         _controller.revealNextWord();
