@@ -39,12 +39,17 @@ class ExpectedWord {
   /// Normalized form used for matching (never displayed).
   final String norm;
 
+  /// Original display text (Uthmani, with diacritics). Optional — used by the
+  /// controller for error logging; the engine itself never reads it.
+  final String display;
+
   const ExpectedWord({
     required this.wordId,
     required this.surah,
     required this.ayah,
     required this.wordIndex,
     required this.norm,
+    this.display = '',
   });
 
   @override
