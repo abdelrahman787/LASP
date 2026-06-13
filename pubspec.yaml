@@ -1,0 +1,14 @@
+name: quran_tasmee3_core
+description: >-
+  Pure-Dart cores for the Quran Tasmee3 memorization app: the recitation
+  matching engine (Feature 2/3) and the review-plan spaced-repetition
+  scheduler (Feature 4). No Flutter or platform dependencies — these files
+  are consumed unchanged by the Flutter app and are fully unit-tested here.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dev_dependencies:
+  test: ^1.25.0
