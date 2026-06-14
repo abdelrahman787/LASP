@@ -1,0 +1,9 @@
+# Deploys to the existing Worker (same name → updates in place):
+#   https://quran-tasmee3-backend.abdelrahman-khamis.workers.dev
+name = "quran-tasmee3-backend"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+
+# Secrets (NOT in this file): set via `wrangler secret put`:
+#   - GROQ_API_KEY        (already set on the Worker from before)
+#   - FIREBASE_PROJECT_ID (optional; the code falls back to "tasmeea-497bf")
