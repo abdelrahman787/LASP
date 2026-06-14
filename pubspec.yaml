@@ -25,7 +25,7 @@ dependencies:
   firebase_auth: ^5.3.1            # SWAP 2: Firebase
   cloud_firestore: ^5.4.4          # SWAP 2: Firebase
   dio: ^5.7.0                      # SWAP 1: real ASR (Worker upload)
-  record: ^5.1.2                   # SWAP 1: real ASR (mic capture)
+  record: ^7.1.0                   # SWAP 1: real ASR (mic capture)
   permission_handler: ^11.3.1      # SWAP 1: real ASR (mic permission)
   # sqflite: ^2.3.3                # SWAP 3: bundled Quran SQLite
   # flutter_local_notifications: ^17.2.3  # Review Plans Phase 6 reminders
