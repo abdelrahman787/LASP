@@ -35,6 +35,25 @@ void main() {
       expect(normalizeForMatch('الـــحمد'), equals('الحمد'));
     });
 
+    test('dagger alef (U+0670) maps to a full alef so مَٰلِك matches مالك', () {
+      expect(normalizeForMatch('مَٰلِكِ'), equals('مالك'));
+      expect(normalizeForMatch('مَٰلِكِ'), equals(normalizeForMatch('مالك')));
+      // Surah 1:4 "مالك يوم الدين" must be an exact match in normal mode.
+      final scope = scopeFromWords(
+        ['مَٰلِكِ', 'يَوْمِ', 'ٱلدِّينِ'].map(normalizeForMatch).toList(),
+      );
+      final r = matchUtterance(
+        scope: scope,
+        cursor: 0,
+        recognizedTokens: tokenize(normalizeForMatch('مالك يوم الدين')),
+        confidence: 0.87,
+        mode: RecitationConfig.normal,
+        acceptedHistory: const [],
+      );
+      expect(r.acceptedWordIndices, equals([0, 1, 2]));
+      expect(r.error, isNull);
+    });
+
     test('alef variants unify', () {
       expect(normalizeForMatch('أنا'), equals(normalizeForMatch('انا')));
       expect(normalizeForMatch('إنا'), equals(normalizeForMatch('انا')));

@@ -184,6 +184,10 @@ class RecitationController {
       return;
     }
 
+    // Clear the previous utterance's classification so `lastError` reflects
+    // only THIS utterance (a clean, fully-accepted utterance leaves it null).
+    _lastError = null;
+
     final result = matchUtterance(
       scope: scope,
       cursor: _cursor,

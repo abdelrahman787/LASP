@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:quran_tasmee3_core/recitation/asr_service.dart';
 import 'package:quran_tasmee3_core/recitation/matching_engine.dart';
+import 'package:quran_tasmee3_core/recitation/normalizer.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_config.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_controller.dart';
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
@@ -54,11 +55,18 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     // Wire the ASR feed → the engine. Real impl streams mic chunks here.
     _asr.start((r) {
       final before = _controller.cursor;
+      // Normalized tokens (exactly what the engine compares).
+      final recog = tokenize(normalizeForMatch(r.text));
+      final expWin = [
+        for (var i = before; i < _scope.length && i < before + 4; i++)
+          _scope[i].norm,
+      ];
       _controller.submitAsr(r);
       dlog('submitAsr "${r.text}" conf=${r.confidence.toStringAsFixed(2)} '
           'cursor $before→${_controller.cursor} '
           'revealed=${_controller.revealedIndices.length} '
           'err=${_controller.lastError?.errorType.name ?? '-'}');
+      dlog('  expected@$before=$expWin  recognized=$recog');
       _refresh();
     });
     _controller.start();

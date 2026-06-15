@@ -19,12 +19,16 @@ const int _superscriptAlef = 0x0670;
 ///
 /// Covers, per spec:
 ///  - U+064B–U+065F : standard Arabic diacritics (fathatan…) + extended marks
-///  - U+0670        : superscript (dagger) alef
 ///  - U+06D6–U+06ED : Quranic annotation signs (small high/low marks, sajda…)
 ///  - U+08D3–U+08FF : Arabic Extended-B combining marks (where present)
+///
+/// NOTE: the **superscript (dagger) alef U+0670 is NOT stripped here** — it
+/// denotes a pronounced long-aa that the rasm omits (e.g. مَٰلِك), and ASR
+/// transcribes it as a full alef (مالك). Stripping it produced "ملك" which
+/// failed to match the recognized "مالك". It is instead mapped to a real alef
+/// in the unification step below.
 bool _isDiacritic(int cp) {
   if (cp >= 0x064B && cp <= 0x065F) return true;
-  if (cp == _superscriptAlef) return true;
   if (cp >= 0x06D6 && cp <= 0x06ED) return true;
   if (cp >= 0x08D3 && cp <= 0x08FF) return true;
   return false;
@@ -61,11 +65,13 @@ String normalizeForMatch(String input) {
 
     int c = cp;
     switch (c) {
-      // 3. alef unification
+      // 3. alef unification (incl. dagger alef U+0670 → full alef, so the
+      // rasm's omitted long-aa matches ASR's spelled-out alef, e.g. مَٰلِك→مالك).
       case 0x0623: // أ hamza above
       case 0x0625: // إ hamza below
       case 0x0622: // آ madda
       case 0x0671: // ٱ wasla
+      case _superscriptAlef: // ٰ U+0670 dagger alef
         c = 0x0627; // ا
         break;
       // 4. alef maksura → ya
