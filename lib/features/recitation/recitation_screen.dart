@@ -9,6 +9,7 @@ import 'package:quran_tasmee3_core/recitation/recitation_config.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_controller.dart';
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
 
+import '../../app/debug.dart';
 import '../../app/providers.dart';
 import '../report/report_screen.dart';
 
@@ -52,14 +53,28 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     _asr = ref.read(asrServiceProvider);
     // Wire the ASR feed → the engine. Real impl streams mic chunks here.
     _asr.start((r) {
+      final before = _controller.cursor;
       _controller.submitAsr(r);
+      dlog('submitAsr "${r.text}" conf=${r.confidence.toStringAsFixed(2)} '
+          'cursor $before→${_controller.cursor} '
+          'revealed=${_controller.revealedIndices.length} '
+          'err=${_controller.lastError?.errorType.name ?? '-'}');
       _refresh();
     });
     _controller.start();
 
     // Real silence behavior: poll the timers against the wall clock.
+    var lastTickStatus = '';
     _silenceTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       _controller.checkSilence();
+      // Log only when something changed to avoid 2/sec spam.
+      final snap = 'cursor=${_controller.cursor} '
+          'silence=${_controller.silenceIndicatorVisible} '
+          'status=${_controller.status.name}';
+      if (snap != lastTickStatus) {
+        dlog('checkSilence $snap');
+        lastTickStatus = snap;
+      }
       _refresh();
     });
   }
@@ -203,6 +218,8 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
                     OutlinedButton(
                       onPressed: () {
                         _controller.revealNextWord();
+                        dlog('revealNextWord → cursor=${_controller.cursor} '
+                            '(mic streaming continues uninterrupted)');
                         _refresh();
                       },
                       child: const Text('إظهار الكلمة التالية'),
@@ -210,6 +227,8 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
                     OutlinedButton(
                       onPressed: () {
                         _controller.revealFullAyah();
+                        dlog('revealFullAyah → cursor=${_controller.cursor} '
+                            '(mic streaming continues uninterrupted)');
                         _refresh();
                       },
                       child: const Text('إظهار الآية كاملة'),
