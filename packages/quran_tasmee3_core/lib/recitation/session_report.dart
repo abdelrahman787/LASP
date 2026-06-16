@@ -168,8 +168,11 @@ SessionReport buildSessionReport({
   final orderErrors = <ReportEntry>[];
   final pronunciations = <ReportEntry>[];
 
-  // Track the worst severity per distinct word for the score breakdown.
+  // Track the worst severity per distinct word (for the score) and the single
+  // display winner per word (the LAST-logged error wins — clock-independent,
+  // so a later re-anchor forget supersedes an earlier order/substitution).
   final worstByWord = <String, ErrorSeverity>{};
+  final displayWinner = <String, RecordedError>{};
 
   for (final e in errors) {
     if (e.severity == ErrorSeverity.transient) {
@@ -177,6 +180,17 @@ SessionReport buildSessionReport({
       // them defensively if a caller passes them in.
       continue;
     }
+    final prev = worstByWord[e.wordId];
+    if (prev == null || _severityRank(e.severity) > _severityRank(prev)) {
+      worstByWord[e.wordId] = e.severity;
+    }
+    displayWinner[e.wordId] = e; // last occurrence wins
+  }
+
+  // Route each word's winner to exactly ONE bucket, so a word never appears in
+  // multiple buckets in the human-readable report. Insertion order of words is
+  // preserved.
+  for (final e in displayWinner.values) {
     final entry = toEntry(e);
     switch (e.errorType) {
       case ErrorType.forget:
@@ -195,33 +209,7 @@ SessionReport buildSessionReport({
         pronunciations.add(entry);
         break;
     }
-
-    final prev = worstByWord[e.wordId];
-    if (prev == null || _severityRank(e.severity) > _severityRank(prev)) {
-      worstByWord[e.wordId] = e.severity;
-    }
   }
-
-  // Dedup each bucket by wordId, keeping the most-escalated entry.
-  List<ReportEntry> dedup(List<ReportEntry> list) {
-    final best = <String, ReportEntry>{};
-    for (final e in list) {
-      final prev = best[e.wordId];
-      if (prev == null ||
-          e.attempts > prev.attempts ||
-          _severityRank(e.severity) > _severityRank(prev.severity)) {
-        best[e.wordId] = e;
-      }
-    }
-    return best.values.toList();
-  }
-
-  final dForgetSilence = dedup(forgetSilence);
-  final dForgetManual = dedup(forgetManual);
-  final dSubs = dedup(substitutions);
-  final dAdds = dedup(additions);
-  final dOrders = dedup(orderErrors);
-  final dProns = dedup(pronunciations);
 
   // Score breakdown: count distinct words by worst severity.
   var confirmed = 0;
@@ -274,12 +262,12 @@ SessionReport buildSessionReport({
   }
 
   return SessionReport(
-    forgetSilence: dForgetSilence,
-    forgetManual: dForgetManual,
-    substitutions: dSubs,
-    additions: dAdds,
-    orderErrors: dOrders,
-    pronunciations: dProns,
+    forgetSilence: forgetSilence,
+    forgetManual: forgetManual,
+    substitutions: substitutions,
+    additions: additions,
+    orderErrors: orderErrors,
+    pronunciations: pronunciations,
     totalWords: totalWords,
     confirmedErrors: confirmed,
     softErrors: soft,

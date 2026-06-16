@@ -99,6 +99,42 @@ void main() {
       expect(r.substitutions.single.attempts, 3);
       expect(r.substitutions.single.severity, ErrorSeverity.confirmed);
     });
+
+    test('cross-bucket dedup: soft order → confirmed substitution → later '
+        'forget appears ONLY in forgetSilence', () {
+      final scope = twoAyahScope();
+      // Same word 1:2:4 logged three contradictory ways over the session
+      // (ladder soft order, ladder confirmed substitution, then re-anchor
+      // forget). The forget is logged LAST → it wins the display bucket.
+      final errors = [
+        re('1:2:4', ErrorType.order,
+            severity: ErrorSeverity.soft, attempts: 2),
+        re('1:2:4', ErrorType.substitution,
+            severity: ErrorSeverity.confirmed, attempts: 3, recognized: 'خطأ'),
+        re('1:2:4', ErrorType.forget), // re-anchor / skip, confirmed
+      ];
+      final r = buildSessionReport(scope: scope, errors: errors);
+
+      // Appears in exactly one bucket — forgetSilence — and nowhere else.
+      expect(r.forgetSilence.map((e) => e.wordId), equals(['1:2:4']));
+      expect(r.substitutions.any((e) => e.wordId == '1:2:4'), isFalse);
+      expect(r.orderErrors.any((e) => e.wordId == '1:2:4'), isFalse);
+      expect(r.forgetManual, isEmpty);
+
+      final inBuckets = [
+        ...r.forgetSilence,
+        ...r.forgetManual,
+        ...r.substitutions,
+        ...r.additions,
+        ...r.orderErrors,
+        ...r.pronunciations,
+      ].where((e) => e.wordId == '1:2:4').length;
+      expect(inBuckets, 1, reason: 'exactly one bucket');
+
+      // Score still counts the word once as confirmed (unchanged).
+      expect(r.confirmedErrors, 1);
+      expect(r.softErrors, 0);
+    });
   });
 
   group('score (confirmed vs soft) + per-ayah accuracy', () {
@@ -219,9 +255,12 @@ void main() {
 
       final report = buildSessionReport(scope: scope, errors: logger.errors);
 
-      // رب (1:2:3) substitution confirmed; 1:2:3 & 1:2:4 manual-forgotten.
-      expect(report.substitutions.any((e) => e.wordId == '1:2:3'), isTrue);
-      expect(report.forgetManual.isNotEmpty, isTrue);
+      // رب (1:2:3) was substituted (confirmed) then manually revealed; the
+      // later manual forget supersedes for display, so it now appears in
+      // forgetManual, NOT substitution (cross-bucket dedup). 1:2:4 too.
+      expect(report.substitutions.any((e) => e.wordId == '1:2:3'), isFalse);
+      expect(report.forgetManual.map((e) => e.wordId),
+          containsAll(<String>['1:2:3', '1:2:4']));
       expect(report.confirmedErrors, greaterThan(0));
       expect(report.score, lessThan(1.0));
 
