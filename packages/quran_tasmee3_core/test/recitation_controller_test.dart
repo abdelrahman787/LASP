@@ -278,6 +278,33 @@ void main() {
       expect(report.confirmedErrors, 6);
     });
 
+    test('small-gap jump (2 words) logs forgets for the exact range', () {
+      c = build(); // cursor 0
+      c.start();
+      // Recite indices 2,3 (الرحمن الرحيم) while stuck at cursor 0 → 2-word gap.
+      const ahead = AsrResult('الرحمن الرحيم', 0.9);
+      c.submitAsr(ahead);
+      c.submitAsr(ahead);
+      c.submitAsr(ahead); // 3rd → re-anchor to index 2
+
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isTrue);
+      expect(c.cursor, 4, reason: 'jumped to 2, consumed 2,3');
+      expect(c.revealedIndices, containsAll(<int>[2, 3]));
+
+      // Exactly indices [0,1] skipped → 2 forgets, boundary is exclusive of 2.
+      final forgets =
+          logger.errors.where((e) => e.errorType == ErrorType.forget).toList();
+      expect(forgets.length, 2);
+      expect(forgets.map((e) => e.wordId), equals(['1:1:1', '1:1:2']));
+      // The anchor word (index 2) must NOT be a forget (off-by-one guard).
+      expect(forgets.any((e) => e.wordId == '1:1:3'), isFalse);
+
+      final report =
+          buildSessionReport(scope: fatihaScope(), errors: logger.errors);
+      expect(report.forgetSilence.length, 2);
+    });
+
     test('no re-anchor when the utterance has no confident anchor', () {
       c = build();
       c.start();

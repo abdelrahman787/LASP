@@ -61,12 +61,28 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
         for (var i = before; i < _scope.length && i < before + 4; i++)
           _scope[i].norm,
       ];
+      final eventsBefore = _controller.events.length;
       _controller.submitAsr(r);
       dlog('submitAsr "${r.text}" conf=${r.confidence.toStringAsFixed(2)} '
           'cursor $before→${_controller.cursor} '
           'revealed=${_controller.revealedIndices.length} '
           'err=${_controller.lastError?.errorType.name ?? '-'}');
       dlog('  expected@$before=$expWin  recognized=$recog');
+
+      // If this utterance re-anchored, print the exact skipped range + forgets.
+      final reanchor = _controller.events
+          .skip(eventsBefore)
+          .where((e) => e.type == RecitationEventType.reanchored)
+          .lastOrNull;
+      if (reanchor != null) {
+        final anchorStart = reanchor.index ?? before;
+        final skipped = [
+          for (var i = before; i < anchorStart && i < _scope.length; i++)
+            if (!_controller.revealedIndices.contains(i)) _scope[i].wordId,
+        ];
+        dlog('  RE-ANCHOR skipped ${skipped.length} word(s) '
+            '[$before..${anchorStart - 1}] → forgets logged: $skipped');
+      }
       _refresh();
     });
     _controller.start();
@@ -129,6 +145,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     await _asr.stop();
 
     final report = buildSessionReport(scope: _scope, errors: _logger.errors);
+    _logReport(report);
     final now = ref.read(clockProvider)();
     await ref.read(reviewServiceProvider).ingestSession(
           errors: _logger.errors,
@@ -141,6 +158,25 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => ReportScreen(report: report)),
     );
+  }
+
+  /// Dump the full SessionReport to logcat so report correctness can be
+  /// verified from `[ASR]` lines without inspecting Firestore or the UI.
+  void _logReport(SessionReport r) {
+    List<String> ids(List<ReportEntry> es) => es.map((e) => e.wordId).toList();
+    dlog('==================== SESSION REPORT ====================');
+    dlog('score=${(r.score * 100).round()}%  '
+        'confirmed=${r.confirmedErrors}  soft=${r.softErrors}  '
+        'totalWords=${r.totalWords}');
+    dlog('نسيان/forgetSilence (${r.forgetSilence.length}): ${ids(r.forgetSilence)}');
+    dlog('نسيان/forgetManual  (${r.forgetManual.length}): ${ids(r.forgetManual)}');
+    dlog('استبدال/substitution (${r.substitutions.length}): ${ids(r.substitutions)}');
+    dlog('زيادة/addition       (${r.additions.length}): ${ids(r.additions)}');
+    dlog('ترتيب/order          (${r.orderErrors.length}): ${ids(r.orderErrors)}');
+    dlog('نطق/pronunciation    (${r.pronunciations.length}): ${ids(r.pronunciations)}');
+    dlog('perAyah: ${r.perAyah.map((a) => '${a.surah}:${a.ayah}='
+        '${(a.accuracy * 100).round()}%(${a.errorWords}/${a.totalWords})').toList()}');
+    dlog('========================================================');
   }
 
   /// The simulate buttons only apply to the fake ASR feed; with the real
