@@ -268,4 +268,44 @@ void main() {
       expect(r.error!.expectedIndex, 2);
     });
   });
+
+  group('findBestAnchor', () {
+    final normal = RecitationConfig.normal;
+    final scope = scopeFromWords(
+      ['الحمد', 'لله', 'رب', 'العالمين', 'الرحمن', 'الرحيم']
+          .map(normalizeForMatch)
+          .toList(),
+    );
+
+    test('finds a matching segment ahead of the cursor', () {
+      final a = findBestAnchor(
+        scope: scope,
+        recognizedTokens: recite('رب العالمين'),
+        mode: normal,
+      );
+      expect(a, isNotNull);
+      expect(a!.startIndex, 2);
+      expect(a.matchedCount, 2);
+      expect(a.fraction, closeTo(1.0, 1e-9));
+    });
+
+    test('returns null when below minWords/minFraction', () {
+      // Single common word only → not enough to confidently re-anchor.
+      final a = findBestAnchor(
+        scope: scope,
+        recognizedTokens: recite('رب زقمون فلان'),
+        mode: normal,
+      );
+      expect(a, isNull);
+    });
+
+    test('returns null when nothing matches', () {
+      final a = findBestAnchor(
+        scope: scope,
+        recognizedTokens: recite('زقمون فلان'),
+        mode: normal,
+      );
+      expect(a, isNull);
+    });
+  });
 }

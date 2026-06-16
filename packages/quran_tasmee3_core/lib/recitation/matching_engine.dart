@@ -232,3 +232,77 @@ MatchResult matchUtterance({
     wasContextReplay: wasReplay,
   );
 }
+
+/// Result of a broad re-anchor search across the whole scope.
+class AnchorMatch {
+  /// Scope index where the utterance best aligns (anchor on the first token).
+  final int startIndex;
+
+  /// Number of consecutive recognized tokens matched from [startIndex].
+  final int matchedCount;
+
+  /// `matchedCount / recognizedTokens.length` — how much of the utterance the
+  /// anchored run explains.
+  final double fraction;
+
+  const AnchorMatch({
+    required this.startIndex,
+    required this.matchedCount,
+    required this.fraction,
+  });
+
+  @override
+  String toString() =>
+      'AnchorMatch(start=$startIndex, matched=$matchedCount, '
+      'frac=${fraction.toStringAsFixed(2)})';
+}
+
+/// Broad recovery search (re-anchor). Unlike [matchUtterance] — which only
+/// looks forward from the cursor — this scans the **entire scope** for the
+/// position where [recognizedTokens] best aligns, so a "stuck" cursor can jump
+/// to where the reciter actually is.
+///
+/// Anchors on the first recognized token, counts the consecutive matched run,
+/// and returns the best candidate only if it covers at least [minWords] words
+/// AND [minFraction] of the utterance. Returns null otherwise (no confident
+/// re-anchor). Pure; the controller decides when to call it.
+AnchorMatch? findBestAnchor({
+  required List<ExpectedWord> scope,
+  required List<String> recognizedTokens,
+  required RecitationConfig mode,
+  double minFraction = 0.6,
+  int minWords = 2,
+}) {
+  if (recognizedTokens.isEmpty || scope.isEmpty) return null;
+  bool same(String token, String norm) =>
+      levRatio(token, norm) <= mode.levThreshold;
+
+  var bestStart = -1;
+  var bestCount = 0;
+  for (var j = 0; j < scope.length; j++) {
+    if (!same(recognizedTokens[0], scope[j].norm)) continue;
+    var t = 0;
+    var c = j;
+    var matched = 0;
+    while (t < recognizedTokens.length &&
+        c < scope.length &&
+        same(recognizedTokens[t], scope[c].norm)) {
+      matched++;
+      t++;
+      c++;
+    }
+    if (matched > bestCount) {
+      bestCount = matched;
+      bestStart = j;
+    }
+  }
+
+  if (bestStart < 0) return null;
+  final fraction = bestCount / recognizedTokens.length;
+  if (bestCount < minWords || fraction < minFraction) return null;
+  return AnchorMatch(
+    startIndex: bestStart,
+    matchedCount: bestCount,
+    fraction: fraction,
+  );
+}

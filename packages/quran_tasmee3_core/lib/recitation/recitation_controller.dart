@@ -82,6 +82,7 @@ enum RecitationEventType {
   silenceIndicatorShown,
   silenceForget,
   asrUnclear,
+  reanchored,
   completed,
 }
 
@@ -109,6 +110,16 @@ class RecitationController {
   /// Called for each one-shot UI event.
   final void Function(RecitationEvent event)? onEvent;
 
+  /// After this many consecutive non-advancing (errored) utterances at the same
+  /// cursor, a broad re-anchor search runs (spec: dual-mode tracking). 0 = off.
+  final int reanchorThreshold;
+
+  /// Minimum fraction of the utterance an anchor run must explain to re-anchor.
+  final double reanchorMinFraction;
+
+  /// Minimum consecutive words an anchor run must cover to re-anchor.
+  final int reanchorMinWords;
+
   RecitationController({
     required this.scope,
     required this.mode,
@@ -117,6 +128,9 @@ class RecitationController {
     this.onReveal,
     this.onEvent,
     int startCursor = 0,
+    this.reanchorThreshold = 3,
+    this.reanchorMinFraction = 0.6,
+    this.reanchorMinWords = 2,
   })  : logger = logger ?? InMemorySessionLogger(),
         _cursor = startCursor;
 
@@ -131,6 +145,7 @@ class RecitationController {
   bool _silenceIndicatorVisible = false;
   int _lastProgressAt = 0;
   RecordedError? _lastError;
+  int _consecutiveStuck = 0; // non-advancing errored utterances at this cursor
   final List<RecitationEvent> events = [];
 
   // --- read-only accessors --------------------------------------------------
@@ -140,6 +155,7 @@ class RecitationController {
   List<int> get acceptedHistory => List.unmodifiable(_acceptedHistory);
   Map<String, int> get attemptCounts => Map.unmodifiable(_attemptCounts);
   int get consecutiveAsrFailures => _consecutiveAsrFailures;
+  int get consecutiveStuck => _consecutiveStuck;
   bool get silenceIndicatorVisible => _silenceIndicatorVisible;
   RecordedError? get lastError => _lastError;
 
@@ -197,8 +213,10 @@ class RecitationController {
       acceptedHistory: _acceptedHistory,
     );
 
+    final advanced = result.acceptedWordIndices.isNotEmpty;
+
     // Reveal the accepted prefix in sequence.
-    if (result.acceptedWordIndices.isNotEmpty) {
+    if (advanced) {
       _status = RecitationStatus.revealing;
       for (final i in result.acceptedWordIndices) {
         if (!_revealedIndices.contains(i)) _revealedIndices.add(i);
@@ -207,11 +225,12 @@ class RecitationController {
         _emit(RecitationEventType.reveal, i);
       }
       _cursor = result.newCursor;
-      // Progress made → reset silence + ASR-failure tracking.
+      // Progress made → reset silence + ASR-failure + stuck tracking.
       _lastProgressAt = now();
       _consecutiveAsrFailures = 0;
       _unclearEmitted = false;
       _silenceIndicatorVisible = false;
+      _consecutiveStuck = 0;
     }
 
     // Pronunciation flags: accepted but low-confidence → log as a flag.
@@ -231,6 +250,25 @@ class RecitationController {
 
     // Handle the stopping error (if any).
     if (result.error != null) {
+      if (!advanced) {
+        // No forward progress at all → count toward a "stuck" state and try a
+        // broad re-anchor once the threshold is reached.
+        _consecutiveStuck++;
+        if (reanchorThreshold > 0 &&
+            _consecutiveStuck >= reanchorThreshold &&
+            _tryReanchor(tokens, r.confidence)) {
+          // Re-anchored: the failed attempts weren't a real error here.
+          if (_cursor >= scope.length) {
+            _complete();
+            return;
+          }
+          _status = RecitationStatus.listening;
+          return;
+        }
+      } else {
+        // Partial advance then stop → progress was made; reset stuck.
+        _consecutiveStuck = 0;
+      }
       _handleError(result.error!, r.confidence);
     }
 
@@ -244,6 +282,52 @@ class RecitationController {
     if (_status != RecitationStatus.completed) {
       _status = RecitationStatus.listening;
     }
+  }
+
+  /// Broad re-anchor recovery (spec: dual-mode tracking). Searches the whole
+  /// scope for where [tokens] best aligns; if confident and different from the
+  /// current cursor, jumps there, reveals the matched run, and logs the skip as
+  /// an `order` event (never silent). Returns true if it re-anchored.
+  bool _tryReanchor(List<String> tokens, double confidence) {
+    final anchor = findBestAnchor(
+      scope: scope,
+      recognizedTokens: tokens,
+      mode: mode,
+      minFraction: reanchorMinFraction,
+      minWords: reanchorMinWords,
+    );
+    if (anchor == null || anchor.startIndex == _cursor) return false;
+
+    // Log the jump as an order/skip at the old cursor (not silent).
+    logger.record(RecordedError(
+      wordId: _cursor < scope.length ? scope[_cursor].wordId : scope.last.wordId,
+      expectedText: _cursor < scope.length ? _expectedText(_cursor) : '',
+      recognizedText: tokens.isNotEmpty ? tokens.first : null,
+      errorType: ErrorType.order,
+      confidence: confidence,
+      attempts: _consecutiveStuck,
+      manualReveal: false,
+      severity: ErrorSeverity.confirmed,
+      createdAt: now(),
+    ));
+
+    // Reveal the matched run at the anchor and jump the cursor there.
+    _status = RecitationStatus.revealing;
+    for (var k = 0; k < anchor.matchedCount; k++) {
+      final i = anchor.startIndex + k;
+      if (!_revealedIndices.contains(i)) _revealedIndices.add(i);
+      _acceptedHistory.add(i);
+      onReveal?.call(i);
+      _emit(RecitationEventType.reveal, i);
+    }
+    _cursor = anchor.startIndex + anchor.matchedCount;
+    _lastProgressAt = now();
+    _consecutiveAsrFailures = 0;
+    _unclearEmitted = false;
+    _silenceIndicatorVisible = false;
+    _consecutiveStuck = 0;
+    _emit(RecitationEventType.reanchored, anchor.startIndex);
+    return true;
   }
 
   void _registerAsrFailure() {

@@ -105,6 +105,18 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           const SnackBar(content: Text('الصوت غير واضح'), duration: Duration(seconds: 2)),
         );
       }
+      final reanchor = fresh
+          .where((e) => e.type == RecitationEventType.reanchored)
+          .lastOrNull;
+      if (reanchor != null) {
+        dlog('RE-ANCHORED → cursor jumped to ${reanchor.index} '
+            '(recovered from stuck state)');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('تمت إعادة المحاذاة'),
+              duration: Duration(seconds: 2)),
+        );
+      }
     }
     setState(() {});
     if (_controller.status == RecitationStatus.completed) _finish();

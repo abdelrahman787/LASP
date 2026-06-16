@@ -48,7 +48,8 @@ void main() {
   late List<int> revealed;
   late RecitationController c;
 
-  RecitationController build({int startCursor = 0, RecitationConfig? mode}) {
+  RecitationController build(
+      {int startCursor = 0, RecitationConfig? mode, int reanchorThreshold = 3}) {
     clock = FakeClock(1000);
     logger = InMemorySessionLogger();
     revealed = [];
@@ -59,6 +60,7 @@ void main() {
       logger: logger,
       onReveal: revealed.add,
       startCursor: startCursor,
+      reanchorThreshold: reanchorThreshold,
     );
   }
 
@@ -233,6 +235,60 @@ void main() {
       expect(c.cursor, 4);
       expect(logger.errors, isEmpty);
       expect(revealed, equals([0, 1, 2, 3]));
+    });
+  });
+
+  group('re-anchor recovery (dual-mode tracking)', () {
+    test('after 3 stuck attempts, cursor jumps to the matching segment ahead',
+        () {
+      c = build(); // cursor 0 = بسم; reanchorThreshold default 3
+      c.start();
+      // Recite ayah 2 words 6,7 (رب العالمين) while stuck at cursor 0.
+      const ahead = AsrResult('رب العالمين', 0.9);
+
+      c.submitAsr(ahead); // stuck #1 (order, no advance)
+      expect(c.cursor, 0);
+      c.submitAsr(ahead); // stuck #2
+      expect(c.cursor, 0);
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isFalse);
+
+      c.submitAsr(ahead); // stuck #3 → re-anchor to index 6
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isTrue);
+      expect(c.cursor, 8, reason: 'jumped to 6 and consumed 6,7');
+      expect(c.revealedIndices, containsAll(<int>[6, 7]));
+      // The jump is logged as an order/skip (not silent).
+      expect(
+          logger.errors.where((e) => e.errorType == ErrorType.order).isNotEmpty,
+          isTrue);
+      // Stuck counter reset after recovery.
+      expect(c.consecutiveStuck, 0);
+    });
+
+    test('no re-anchor when the utterance has no confident anchor', () {
+      c = build();
+      c.start();
+      const junk = AsrResult('زقمون', 0.9); // matches nothing in scope
+      c.submitAsr(junk);
+      c.submitAsr(junk);
+      c.submitAsr(junk);
+      c.submitAsr(junk);
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isFalse);
+      expect(c.cursor, 0);
+    });
+
+    test('reanchorThreshold: 0 disables re-anchor', () {
+      c = build(reanchorThreshold: 0);
+      c.start();
+      const ahead = AsrResult('رب العالمين', 0.9);
+      for (var i = 0; i < 5; i++) {
+        c.submitAsr(ahead);
+      }
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isFalse);
+      expect(c.cursor, 0);
     });
   });
 
