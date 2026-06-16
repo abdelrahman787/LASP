@@ -5,6 +5,7 @@ import 'package:quran_tasmee3_core/recitation/matching_engine.dart';
 import 'package:quran_tasmee3_core/recitation/normalizer.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_config.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_controller.dart';
+import 'package:quran_tasmee3_core/recitation/session_report.dart';
 
 /// Al-Fatiha ayah 1 (4 words) + ayah 2 (4 words) as a scope.
 List<ExpectedWord> fatihaScope() {
@@ -258,12 +259,23 @@ void main() {
           isTrue);
       expect(c.cursor, 8, reason: 'jumped to 6 and consumed 6,7');
       expect(c.revealedIndices, containsAll(<int>[6, 7]));
-      // The jump is logged as an order/skip (not silent).
-      expect(
-          logger.errors.where((e) => e.errorType == ErrorType.order).isNotEmpty,
-          isTrue);
       // Stuck counter reset after recovery.
       expect(c.consecutiveStuck, 0);
+
+      // Every skipped, never-accepted word [0..5] is logged as a forget.
+      final forgets =
+          logger.errors.where((e) => e.errorType == ErrorType.forget).toList();
+      expect(forgets.length, 6);
+      expect(forgets.map((e) => e.wordId),
+          equals(['1:1:1', '1:1:2', '1:1:3', '1:1:4', '1:2:1', '1:2:2']));
+      expect(forgets.every((e) => !e.manualReveal), isTrue);
+
+      // The report's نسيان bucket reflects the whole skipped range.
+      final report =
+          buildSessionReport(scope: fatihaScope(), errors: logger.errors);
+      expect(report.forgetSilence.length, 6);
+      expect(report.forgetManual, isEmpty);
+      expect(report.confirmedErrors, 6);
     });
 
     test('no re-anchor when the utterance has no confident anchor', () {

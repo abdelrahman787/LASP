@@ -286,8 +286,12 @@ class RecitationController {
 
   /// Broad re-anchor recovery (spec: dual-mode tracking). Searches the whole
   /// scope for where [tokens] best aligns; if confident and different from the
-  /// current cursor, jumps there, reveals the matched run, and logs the skip as
-  /// an `order` event (never silent). Returns true if it re-anchored.
+  /// current cursor, jumps there, reveals the matched run, and — for a forward
+  /// jump — records a `forget` for every never-accepted word in the skipped
+  /// range `[oldCursor, anchor.startIndex)`, exactly like Reveal Full Ayah. So
+  /// a skipped ayah surfaces in the report's نسيان bucket and weak-item
+  /// aggregation, not just as a generic "reordered" note. Returns true if it
+  /// re-anchored.
   bool _tryReanchor(List<String> tokens, double confidence) {
     final anchor = findBestAnchor(
       scope: scope,
@@ -298,18 +302,15 @@ class RecitationController {
     );
     if (anchor == null || anchor.startIndex == _cursor) return false;
 
-    // Log the jump as an order/skip at the old cursor (not silent).
-    logger.record(RecordedError(
-      wordId: _cursor < scope.length ? scope[_cursor].wordId : scope.last.wordId,
-      expectedText: _cursor < scope.length ? _expectedText(_cursor) : '',
-      recognizedText: tokens.isNotEmpty ? tokens.first : null,
-      errorType: ErrorType.order,
-      confidence: confidence,
-      attempts: _consecutiveStuck,
-      manualReveal: false,
-      severity: ErrorSeverity.confirmed,
-      createdAt: now(),
-    ));
+    final oldCursor = _cursor;
+
+    // Forward jump → everything between the old cursor and the anchor was
+    // skipped. Log each never-accepted word as a direct forget (not silent).
+    for (var i = oldCursor; i < anchor.startIndex && i < scope.length; i++) {
+      if (!_revealedIndices.contains(i)) {
+        _recordForget(i, manualReveal: false);
+      }
+    }
 
     // Reveal the matched run at the anchor and jump the cursor there.
     _status = RecitationStatus.revealing;
