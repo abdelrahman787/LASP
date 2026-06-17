@@ -9,6 +9,7 @@ import 'package:quran_tasmee3_core/recitation/normalizer.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_config.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_controller.dart';
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
+import 'package:quran_tasmee3_core/review/models.dart' show ReviewResult;
 
 import '../../app/data/quran_repository.dart';
 import '../../app/debug.dart';
@@ -23,7 +24,25 @@ import '../report/report_screen.dart';
 /// runs on the emulator without a microphone.
 class RecitationScreen extends ConsumerStatefulWidget {
   final int pageNumber;
-  const RecitationScreen({super.key, required this.pageNumber});
+
+  /// Review mode (Phase 4): when [scope] is provided, recite exactly these
+  /// words (a plan item's ayah range) instead of a full page, and on completion
+  /// feed the result back into the plan via [planId]/[planItemId].
+  final List<ExpectedWord>? scope;
+  final String? title;
+  final String? planId;
+  final String? planItemId;
+
+  const RecitationScreen({
+    super.key,
+    this.pageNumber = 0,
+    this.scope,
+    this.title,
+    this.planId,
+    this.planItemId,
+  });
+
+  bool get isReview => scope != null;
 
   @override
   ConsumerState<RecitationScreen> createState() => _RecitationScreenState();
@@ -49,14 +68,15 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   void initState() {
     super.initState();
     final now = ref.read(clockProvider);
-    _scope = ref.read(quranRepositoryProvider).getPageWords(widget.pageNumber);
+    _scope = widget.scope ??
+        ref.read(quranRepositoryProvider).getPageWords(widget.pageNumber);
     final mode = ref.read(settingsProvider).valueOrNull?.recitationConfig ??
         RecitationConfig.normal;
 
-    // Page render data: real glyphs when the bundled DB is loaded, else a
-    // simple synthesized layout from the scope (fake / tests).
+    // Page render data: real glyphs when reciting a whole page with the bundled
+    // DB loaded; otherwise (review mode / fake / tests) a synthesized layout.
     final data = ref.read(quranDataProvider).valueOrNull;
-    final real = data?.pageGlyphs[widget.pageNumber];
+    final real = widget.isReview ? null : data?.pageGlyphs[widget.pageNumber];
     if (real != null && real.isNotEmpty) {
       _glyphs = real;
     } else {
@@ -219,16 +239,44 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     final report = buildSessionReport(scope: _scope, errors: _logger.errors);
     _logReport(report);
     final now = ref.read(clockProvider)();
-    await ref.read(reviewServiceProvider).ingestSession(
-          errors: _logger.errors,
+    final reviewService = ref.read(reviewServiceProvider);
+    await reviewService.ingestSession(errors: _logger.errors, nowMs: now);
+
+    // Loop closure (Phase 4): feed the result back into the plan item.
+    String? summary;
+    if (widget.planId != null && widget.planItemId != null) {
+      final result = ReviewResult.fromCounts(
+        planItemId: widget.planItemId!,
+        confirmedErrors: report.confirmedErrors,
+        totalWords: report.totalWords,
+        reviewedAt: now,
+      );
+      try {
+        final plan = await reviewService.applyReview(
+          planId: widget.planId!,
+          result: result,
           nowMs: now,
         );
+        final item = plan.items.where((i) => i.id == widget.planItemId).toList();
+        final days = item.isNotEmpty
+            ? ((item.first.dueAt - now) / 86400000).round()
+            : null;
+        summary = 'تمت المراجعة • النتيجة ${(report.score * 100).round()}%'
+            '${days != null ? ' • الاستحقاق القادم بعد $days يوم' : ''}';
+        dlog('review applied: item=${widget.planItemId} '
+            'score=${result.score.toStringAsFixed(2)} nextDueDays=$days');
+      } catch (e) {
+        dlog('applyReview failed: $e');
+      }
+    }
+
     ref.invalidate(dashboardProvider);
     ref.invalidate(plansListProvider);
 
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => ReportScreen(report: report)),
+      MaterialPageRoute(
+          builder: (_) => ReportScreen(report: report, summary: summary)),
     );
   }
 
@@ -278,7 +326,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('تسميع — صفحة ${widget.pageNumber}'),
+        title: Text(widget.title ?? 'تسميع — صفحة ${widget.pageNumber}'),
         actions: [
           TextButton(
             onPressed: _finishing ? null : _finish,

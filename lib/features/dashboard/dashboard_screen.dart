@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:quran_tasmee3_core/review/models.dart';
+
 import '../../app/providers.dart';
 import '../plans/plans_screen.dart';
 import '../recitation/recitation_screen.dart';
+import '../review/start_review.dart';
 import '../settings/settings_screen.dart';
 
-/// Plans dashboard (Review Plans Phase 3): today's review, weak spots.
+/// Plans dashboard (Review Plans Phase 3): today's review, weak spots, streak.
+/// Functionally wired; visual design comes later.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -56,37 +60,18 @@ class DashboardScreen extends ConsumerWidget {
           data: (data) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('مراجعة اليوم', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('${data.dueToday.length} عنصر مستحق',
-                          style: theme.textTheme.headlineSmall),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('ابدأ المراجعة'),
-                        onPressed: pages.isEmpty
-                            ? null
-                            : () => Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) =>
-                                    RecitationScreen(pageNumber: pages.first))),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _streakStrip(theme, data),
               const SizedBox(height: 12),
+              _todaysReviewCard(context, ref, theme, data),
+              const SizedBox(height: 16),
+              _weakSpots(theme, data),
+              const SizedBox(height: 16),
               Text('تسميع صفحة', style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 8,
                 children: [
-                  for (final p in pages)
+                  for (final p in pages.take(20))
                     ActionChip(
                       label: Text('صفحة $p'),
                       onPressed: () => Navigator.of(context).push(
@@ -95,23 +80,95 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Text('النقاط الضعيفة', style: theme.textTheme.titleMedium),
-              if (data.weakAyat.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('لا توجد أخطاء مسجّلة بعد — ابدأ جلسة تسميع.'),
-                ),
-              for (final w in data.weakAyat)
-                ListTile(
-                  title: Text('${w.surah}:${w.ayah}'),
-                  subtitle: LinearProgressIndicator(value: w.masteryScore),
-                  trailing: Text('${w.totalErrors} خطأ'),
-                ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _streakStrip(ThemeData theme, DashboardData data) {
+    return Row(
+      children: [
+        const Icon(Icons.local_fire_department, color: Colors.orange),
+        const SizedBox(width: 6),
+        Text('${data.streakDays} يوم متتالٍ', style: theme.textTheme.bodyMedium),
+        const Spacer(),
+        Text('أُتقن: ${data.weakAyat.where((w) => w.masteryScore >= 0.9).length}',
+            style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+
+  Widget _todaysReviewCard(
+      BuildContext context, WidgetRef ref, ThemeData theme, DashboardData data) {
+    final due = data.dueToday;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('مراجعة اليوم', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text('${due.length} عنصر مستحق', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: LinearProgressIndicator(value: data.dailyProgress),
+                ),
+                const SizedBox(width: 8),
+                Text('${data.reviewedToday}/${data.dailyTarget}',
+                    style: theme.textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('ابدأ المراجعة'),
+              onPressed: due.isEmpty
+                  ? null
+                  : () => startReview(context, ref,
+                      planId: data.autoPlan.id, item: due.first),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _weakSpots(ThemeData theme, DashboardData data) {
+    // Group weak ayat by surah, preserving the global weaknessScore desc order.
+    final bySurah = <int, List<WeakAyah>>{};
+    for (final w in data.weakAyat) {
+      (bySurah[w.surah] ??= []).add(w);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('النقاط الضعيفة', style: theme.textTheme.titleMedium),
+        if (data.weakAyat.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('لا توجد أخطاء مسجّلة بعد — ابدأ جلسة تسميع.'),
+          ),
+        for (final entry in bySurah.entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 2),
+            child: Text('سورة ${entry.key}',
+                style: theme.textTheme.titleSmall),
+          ),
+          for (final w in entry.value)
+            ListTile(
+              dense: true,
+              title: Text('${w.surah}:${w.ayah}'),
+              subtitle: LinearProgressIndicator(value: w.masteryScore),
+              trailing: Text('${w.totalErrors} خطأ'),
+            ),
+        ],
+      ],
     );
   }
 }

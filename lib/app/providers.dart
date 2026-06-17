@@ -166,7 +166,30 @@ class DashboardData {
   final ReviewPlan autoPlan;
   final List<PlanItem> dueToday;
   final List<WeakAyah> weakAyat;
-  const DashboardData(this.autoPlan, this.dueToday, this.weakAyat);
+  final int reviewedToday; // history entries reviewed since local midnight
+  final int streakDays; // consecutive days (ending today) with ≥1 review
+  const DashboardData(this.autoPlan, this.dueToday, this.weakAyat,
+      this.reviewedToday, this.streakDays);
+
+  int get dailyTarget => autoPlan.dailyTarget;
+  double get dailyProgress =>
+      dailyTarget <= 0 ? 0 : (reviewedToday / dailyTarget).clamp(0.0, 1.0);
+}
+
+const int _msPerDayUi = 86400000;
+
+int _dayIndex(int epochMs) => epochMs ~/ _msPerDayUi; // UTC day bucket
+
+int _computeStreak(Iterable<int> reviewedAtMs, int nowMs) {
+  final days = reviewedAtMs.map(_dayIndex).toSet();
+  if (days.isEmpty) return 0;
+  var streak = 0;
+  var day = _dayIndex(nowMs);
+  while (days.contains(day)) {
+    streak++;
+    day--;
+  }
+  return streak;
 }
 
 /// Rebuilds the auto plan from current weak items and derives the dashboard
@@ -178,7 +201,14 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
   final due = todaysQueue(plan, now);
   final weak = await ref.watch(weakItemRepositoryProvider).getAll();
   final ayat = aggregate(weak, nowMs: now);
-  return DashboardData(plan, due, ayat);
+
+  final history = await ref.watch(reviewHistoryRepositoryProvider).getAll();
+  final todayStart = _dayIndex(now) * _msPerDayUi;
+  final reviewedToday =
+      history.where((r) => r.reviewedAt >= todayStart).length;
+  final streak = _computeStreak(history.map((r) => r.reviewedAt), now);
+
+  return DashboardData(plan, due, ayat, reviewedToday, streak);
 });
 
 /// All saved plans (auto + custom).

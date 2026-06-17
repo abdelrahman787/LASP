@@ -6,7 +6,10 @@ import 'package:quran_tasmee3_core/recitation/session_report.dart';
 /// Arabic error categories.
 class ReportScreen extends StatelessWidget {
   final SessionReport report;
-  const ReportScreen({super.key, required this.report});
+
+  /// Optional "review complete" banner (Phase 4 loop closure).
+  final String? summary;
+  const ReportScreen({super.key, required this.report, this.summary});
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +27,14 @@ class ReportScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (summary != null)
+            Card(
+              color: theme.colorScheme.primaryContainer,
+              child: ListTile(
+                leading: const Icon(Icons.check_circle),
+                title: Text(summary!),
+              ),
+            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),

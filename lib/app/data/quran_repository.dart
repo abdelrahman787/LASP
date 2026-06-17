@@ -21,6 +21,10 @@ abstract class QuranRepository {
 
   /// Ordered words of [page], ready to use as a recitation scope.
   List<ExpectedWord> getPageWords(int page);
+
+  /// Ordered words of an inclusive ayah range in one surah — the recitation
+  /// scope for a review session (Review Plans Phase 4).
+  List<ExpectedWord> wordsForAyahRange(int surah, int ayahStart, int ayahEnd);
 }
 
 /// Al-Fatiha (surah 1) on a single fake "page 1".
@@ -57,6 +61,14 @@ class FakeQuranRepository implements QuranRepository {
       }
     }
     return scope;
+  }
+
+  @override
+  List<ExpectedWord> wordsForAyahRange(int surah, int ayahStart, int ayahEnd) {
+    return getPageWords(1)
+        .where((w) =>
+            w.surah == surah && w.ayah >= ayahStart && w.ayah <= ayahEnd)
+        .toList();
   }
 }
 
@@ -102,8 +114,10 @@ class QuranData {
   final List<int> pages;
   final Map<int, List<ExpectedWord>> pageWords; // recitation scope (words only)
   final Map<int, List<PageGlyph>> pageGlyphs; // full page render data
+  final Map<String, List<ExpectedWord>> ayahWords; // "surah:ayah" → words
   final List<AyahMeta> ayahMeta;
-  const QuranData(this.pages, this.pageWords, this.pageGlyphs, this.ayahMeta);
+  const QuranData(
+      this.pages, this.pageWords, this.pageGlyphs, this.ayahWords, this.ayahMeta);
 }
 
 const String _kDbAsset = 'assets/quran/quran_qcf_v2.sqlite';
@@ -133,6 +147,7 @@ Future<QuranData> loadQuranData() async {
     );
     final pageWords = <int, List<ExpectedWord>>{};
     final pageGlyphs = <int, List<PageGlyph>>{};
+    final ayahWords = <String, List<ExpectedWord>>{};
     for (final r in rows) {
       final page = r['page_number'] as int;
       final type = (r['word_type'] as String?) ?? 'word';
@@ -154,14 +169,16 @@ Future<QuranData> loadQuranData() async {
       ));
 
       if (type == 'word') {
-        (pageWords[page] ??= []).add(ExpectedWord(
+        final word = ExpectedWord(
           wordId: id,
           surah: surah,
           ayah: ayah,
           wordIndex: (r['word_index'] as int?) ?? 0,
           norm: normalizeForMatch(display),
           display: display,
-        ));
+        );
+        (pageWords[page] ??= []).add(word);
+        (ayahWords['$surah:$ayah'] ??= []).add(word);
       }
     }
     final pages = pageGlyphs.keys.toList()..sort();
@@ -182,7 +199,7 @@ Future<QuranData> loadQuranData() async {
         ),
     ];
 
-    return QuranData(pages, pageWords, pageGlyphs, ayahMeta);
+    return QuranData(pages, pageWords, pageGlyphs, ayahWords, ayahMeta);
   } finally {
     await db.close();
   }
@@ -198,4 +215,13 @@ class SqliteQuranRepository implements QuranRepository {
 
   @override
   List<ExpectedWord> getPageWords(int page) => data.pageWords[page] ?? const [];
+
+  @override
+  List<ExpectedWord> wordsForAyahRange(int surah, int ayahStart, int ayahEnd) {
+    final out = <ExpectedWord>[];
+    for (var a = ayahStart; a <= ayahEnd; a++) {
+      out.addAll(data.ayahWords['$surah:$a'] ?? const []);
+    }
+    return out;
+  }
 }

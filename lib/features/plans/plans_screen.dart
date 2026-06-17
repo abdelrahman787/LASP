@@ -5,6 +5,7 @@ import 'package:quran_tasmee3_core/review/models.dart';
 import 'package:quran_tasmee3_core/review/plan_service.dart';
 
 import '../../app/providers.dart';
+import '../review/start_review.dart';
 
 /// Lists plans and supports custom-plan creation (Review Plans Phase 5).
 class PlansScreen extends ConsumerWidget {
@@ -148,6 +149,12 @@ class PlanDetailScreen extends ConsumerWidget {
     PlanItemStatus.mastered: 'متقَن',
   };
 
+  static String _due(int dueAt, int now) {
+    if (dueAt <= now) return 'مستحق الآن';
+    final days = ((dueAt - now) / 86400000).ceil();
+    return 'بعد $days يوم';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final plansAsync = ref.watch(plansListProvider);
@@ -161,6 +168,7 @@ class PlanDetailScreen extends ConsumerWidget {
           if (plan == null) {
             return const Center(child: Text('الخطة غير موجودة.'));
           }
+          final now = DateTime.now().millisecondsSinceEpoch;
           return ListView(
             children: [
               for (final item in plan.items)
@@ -169,10 +177,16 @@ class PlanDetailScreen extends ConsumerWidget {
                       ? '${item.surah}:${item.ayah}-${item.ayahEnd}'
                       : '${item.surah}:${item.ayah}'),
                   subtitle: Text('الحالة: ${_statusLabels[item.status]} · '
-                      'الفاصل ${item.intervalDays}ي'),
+                      'الفاصل ${item.intervalDays}ي · ${_due(item.dueAt, now)}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: 'ابدأ المراجعة',
+                        icon: const Icon(Icons.play_arrow),
+                        onPressed: () =>
+                            startReview(context, ref, planId: plan.id, item: item),
+                      ),
                       IconButton(
                         tooltip: 'تأجيل ٣ أيام',
                         icon: const Icon(Icons.snooze),
