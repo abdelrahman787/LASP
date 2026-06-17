@@ -105,14 +105,25 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 });
 
 // --- External dependency #3: Quran data (Quran Foundation API → SQLite) ------
+// SWAP POINT 3 complete: load the bundled quran_qcf_v2.sqlite once into memory.
+// While loading (or if the asset/plugins are unavailable, e.g. tests), the
+// providers fall back to the Al-Fatiha fakes — so the app always runs.
+final quranDataProvider = FutureProvider<QuranData?>((ref) async {
+  try {
+    return await loadQuranData();
+  } catch (_) {
+    return null; // asset missing / unsupported platform → fall back to fakes
+  }
+});
+
 final quranRepositoryProvider = Provider<QuranRepository>((ref) {
-  // SWAP POINT 3 (bundled SQLite): return SqliteQuranRepository();
-  return FakeQuranRepository();
+  final data = ref.watch(quranDataProvider).valueOrNull;
+  return data != null ? SqliteQuranRepository(data) : FakeQuranRepository();
 });
 
 final ayahRangeResolverProvider = Provider<AyahRangeResolver>((ref) {
-  // SWAP POINT 3 (bundled SQLite): return SqliteAyahRangeResolver(...);
-  return InMemoryAyahRangeResolver(fakeAyahMeta);
+  final data = ref.watch(quranDataProvider).valueOrNull;
+  return InMemoryAyahRangeResolver(data?.ayahMeta ?? fakeAyahMeta);
 });
 
 // --- Composed services (no swap needed — pure-Dart cores) --------------------

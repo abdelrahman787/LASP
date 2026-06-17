@@ -25,7 +25,8 @@ function runTx(db, fn) {
 
 /** Create the exact schema from the mushaf-viewer spec. */
 export function createSchema(db) {
-  db.exec('PRAGMA journal_mode = WAL;');
+  // Default rollback journal (no persistent -wal/-shm sidecars) → the shipped
+  // DB is a single clean file to bundle as a Flutter asset.
   db.exec(`
     DROP TABLE IF EXISTS surahs;
     DROP TABLE IF EXISTS pages;

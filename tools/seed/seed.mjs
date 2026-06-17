@@ -25,8 +25,10 @@ import { createSchema, insertPage, insertSurahs, openDb, report } from './db.mjs
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const CLIENT_ID = requireEnv('QF_CLIENT_ID');
-const CLIENT_SECRET = requireEnv('QF_CLIENT_SECRET');
+const FONTS_ONLY = process.env.SEED_FONTS_ONLY === '1';
+// Creds are only needed to hit the API; fonts-only mode skips that.
+const CLIENT_ID = FONTS_ONLY ? '' : requireEnv('QF_CLIENT_ID');
+const CLIENT_SECRET = FONTS_ONLY ? '' : requireEnv('QF_CLIENT_SECRET');
 const OAUTH_URL =
   process.env.QF_OAUTH_URL || 'https://oauth2.quran.foundation/oauth2/token';
 const API_BASE =
@@ -123,16 +125,17 @@ async function fetchPageVerses(page) {
 async function downloadFonts() {
   if (!FONT_URL_TEMPLATE) {
     console.log(
-      '\nFONT_URL_TEMPLATE not set → skipping font download. Set it to e.g.\n' +
-        '  FONT_URL_TEMPLATE="https://<host>/p{page}.woff2"\n' +
-        'to fetch the 604 QCF V2 page fonts into assets/quran/fonts/.',
+      '\nFONT_URL_TEMPLATE not set → skipping font download. Recommended QCF V2 set:\n' +
+        '  FONT_URL_TEMPLATE="https://raw.githubusercontent.com/nuqayah/qpc-fonts/master/mushaf-v2/QCF2{page3}.ttf"\n' +
+        '({page3} = zero-padded 3-digit page; TTF is what Flutter bundles.)',
     );
     return 0;
   }
   await mkdir(FONT_DIR, { recursive: true });
   let ok = 0;
   for (let p = 1; p <= TOTAL_PAGES; p++) {
-    const url = FONT_URL_TEMPLATE.replaceAll('{page}', String(p));
+    const url = FONT_URL_TEMPLATE.replaceAll('{page3}', String(p).padStart(3, '0'))
+      .replaceAll('{page}', String(p));
     const ext = url.split('.').pop().split('?')[0];
     try {
       const res = await fetch(url);
@@ -150,6 +153,14 @@ async function downloadFonts() {
 
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
+
+  // Fonts-only mode: reuse the existing DB, just (re)download the page fonts.
+  if (process.env.SEED_FONTS_ONLY === '1') {
+    const fonts = await downloadFonts();
+    console.log(`\nFonts saved: ${fonts}/${TOTAL_PAGES} → ${FONT_DIR}`);
+    return;
+  }
+
   const db = openDb(DB_PATH);
   createSchema(db);
 

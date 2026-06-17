@@ -53,11 +53,27 @@ word_type='word' ORDER BY word_position_in_page` — `id` matches the engine's
 
 ## Fonts
 
-QCF V2 is one font per page (`p1…p604`). Set `FONT_URL_TEMPLATE` to a source
-with a `{page}` placeholder (e.g. `https://<host>/p{page}.woff2`); files land in
-`assets/quran/fonts/p{n}.<ext>`. Left unset, font download is skipped (the
-SQLite build is independent of it). Respect the QCF V2 license and add the
-required attribution to the app's About screen.
+QCF V2 is one font per page (604 files). The canonical, Flutter-ready (**TTF**)
+source is the King Fahd Complex set mirrored at `nuqayah/qpc-fonts`
+(`mushaf-v2/QCF2NNN.ttf`, zero-padded). Download all 604 into
+`assets/quran/fonts/p{n}.ttf` with:
+
+```bash
+SEED_FONTS_ONLY=1 \
+FONT_URL_TEMPLATE="https://raw.githubusercontent.com/nuqayah/qpc-fonts/master/mushaf-v2/QCF2{page3}.ttf" \
+npm run seed
+```
+
+- `{page3}` = zero-padded 3-digit page (`001`…`604`); `{page}` = raw number.
+- `SEED_FONTS_ONLY=1` skips the API/DB and only fetches fonts (no creds needed),
+  so you can run it after the DB is already built.
+- TTF (not woff2) is what Flutter bundles on mobile.
+- Respect the QCF V2 license (King Fahd Complex) and add the required
+  attribution to the app's About screen.
+
+The SQLite build is independent of fonts — fonts are only needed by the
+pixel-faithful page renderer (Mushaf Phase 2). The recitation flow renders
+`uthmani_text` directly and works without them.
 
 ## Wiring into the app (SWAP POINT 3)
 

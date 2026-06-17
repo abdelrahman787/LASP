@@ -23,5 +23,9 @@ android/key.properties
 # OS
 .DS_Store
 
-# Generated Quran data (build locally via tools/seed; not committed)
-assets/quran/
+# Generated Quran data (build locally via tools/seed; only .gitkeep tracked)
+assets/quran/*.sqlite
+assets/quran/*.sqlite-shm
+assets/quran/*.sqlite-wal
+assets/quran/fonts/*
+!assets/quran/fonts/.gitkeep
