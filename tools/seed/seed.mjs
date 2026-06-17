@@ -132,8 +132,11 @@ async function downloadFonts() {
     return 0;
   }
   await mkdir(FONT_DIR, { recursive: true });
+  // Optional range (handy for resuming a partial download).
+  const from = Math.max(1, Number(process.env.FONT_FROM || 1));
+  const to = Math.min(TOTAL_PAGES, Number(process.env.FONT_TO || TOTAL_PAGES));
   let ok = 0;
-  for (let p = 1; p <= TOTAL_PAGES; p++) {
+  for (let p = from; p <= to; p++) {
     const url = FONT_URL_TEMPLATE.replaceAll('{page3}', String(p).padStart(3, '0'))
       .replaceAll('{page}', String(p));
     const ext = url.split('.').pop().split('?')[0];
@@ -144,9 +147,9 @@ async function downloadFonts() {
       await writeFile(join(FONT_DIR, `p${p}.${ext}`), buf);
       ok++;
     } catch (e) {
-      console.warn(`  font p${p} failed: ${e.message}`);
+      console.warn(`  font p${p} failed (${url}): ${e.message}`);
     }
-    if (p % 50 === 0) console.log(`  fonts ${p}/${TOTAL_PAGES}`);
+    if (p % 50 === 0) console.log(`  fonts ${p}/${to}`);
   }
   return ok;
 }

@@ -64,9 +64,18 @@ FONT_URL_TEMPLATE="https://raw.githubusercontent.com/nuqayah/qpc-fonts/master/mu
 npm run seed
 ```
 
-- `{page3}` = zero-padded 3-digit page (`001`…`604`); `{page}` = raw number.
+Verified working: `QCF2001.ttf` … `QCF2604.ttf` exist on `master` and return
+200 (page 1 = 618,744 bytes). Files are **zero-padded to 3 digits**.
+
+- `{page3}` = zero-padded 3-digit page (`001`…`604`) — **required** for this
+  source; `{page}` (raw, unpadded) hits `QCF24.ttf` which 404s. If the run logs
+  the literal `…QCF2{page3}.ttf` in the failing URL, your `seed.mjs` is stale —
+  `git pull` and retry.
 - `SEED_FONTS_ONLY=1` skips the API/DB and only fetches fonts (no creds needed),
   so you can run it after the DB is already built.
+- `FONT_FROM` / `FONT_TO` limit the page range (e.g. to resume a partial run):
+  `SEED_FONTS_ONLY=1 FONT_FROM=200 FONT_TO=604 FONT_URL_TEMPLATE=… npm run seed`.
+- On failure the exact attempted URL is printed, so a 404 is easy to diagnose.
 - TTF (not woff2) is what Flutter bundles on mobile.
 - Respect the QCF V2 license (King Fahd Complex) and add the required
   attribution to the app's About screen.
