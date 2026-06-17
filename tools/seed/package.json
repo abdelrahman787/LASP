@@ -3,12 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "One-time off-device seeder: Quran Foundation API v4 → quran_qcf_v2.sqlite (+ QCF V2 fonts). Mushaf viewer Phase 0.",
+  "description": "One-time off-device seeder: Quran Foundation API v4 → quran_qcf_v2.sqlite (+ QCF V2 fonts). Mushaf viewer Phase 0. Uses Node's built-in node:sqlite (Node 22+) — no native build.",
   "scripts": {
     "seed": "node seed.mjs",
     "test": "node test_build.mjs"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.3.0"
   }
 }

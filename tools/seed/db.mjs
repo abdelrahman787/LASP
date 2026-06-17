@@ -1,11 +1,31 @@
 // SQLite builder for the bundled Quran data (Mushaf viewer Phase 0).
 // Pure DB logic — no network — so it's unit-testable with canned API data.
+//
+// Uses Node's built-in `node:sqlite` (Node 22+), so there's NO native build
+// step (no better-sqlite3 / Visual Studio C++ toolchain needed).
 
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
+
+export function openDb(path) {
+  return new DatabaseSync(path);
+}
+
+/** Run `fn` inside a transaction (node:sqlite has no transaction() helper). */
+function runTx(db, fn) {
+  db.exec('BEGIN');
+  try {
+    const r = fn();
+    db.exec('COMMIT');
+    return r;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
 
 /** Create the exact schema from the mushaf-viewer spec. */
 export function createSchema(db) {
-  db.pragma('journal_mode = WAL');
+  db.exec('PRAGMA journal_mode = WAL;');
   db.exec(`
     DROP TABLE IF EXISTS surahs;
     DROP TABLE IF EXISTS pages;
@@ -55,10 +75,6 @@ export function createSchema(db) {
   `);
 }
 
-export function openDb(path) {
-  return new Database(path);
-}
-
 /** Map the API's char_type_name to the schema's word_type. */
 export function mapWordType(charType) {
   switch (charType) {
@@ -80,8 +96,8 @@ export function insertSurahs(db, chapters) {
       (id, name_ar, name_en, revelation_place, verses_count, start_page, bismillah_pre)
     VALUES (@id, @name_ar, @name_en, @revelation_place, @verses_count, @start_page, @bismillah_pre)
   `);
-  const tx = db.transaction((rows) => {
-    for (const c of rows) {
+  runTx(db, () => {
+    for (const c of chapters) {
       const pages = Array.isArray(c.pages) ? c.pages : [];
       stmt.run({
         id: c.id,
@@ -94,7 +110,6 @@ export function insertSurahs(db, chapters) {
       });
     }
   });
-  tx(chapters);
 }
 
 /**
@@ -122,7 +137,7 @@ export function insertPage(db, page, verses) {
   let wordCount = 0;
   let markerCount = 0;
 
-  const tx = db.transaction(() => {
+  runTx(db, () => {
     // Stable reading order: by verse number, then word position.
     const sortedVerses = [...verses].sort(
       (a, b) => verseNum(a.verse_key) - verseNum(b.verse_key),
@@ -193,21 +208,19 @@ export function insertPage(db, page, verses) {
       line_count: maxLine,
     });
   });
-  tx();
 
   return { words: wordCount, markers: markerCount };
 }
 
 function verseNum(verseKey) {
-  // "2:255" → 255 (within-page ordering only needs the ayah component, but we
-  // also fold in surah so multi-surah pages order correctly).
+  // "2:255" → folds surah+ayah so multi-surah pages order correctly.
   const [s, a] = String(verseKey).split(':').map(Number);
   return s * 1000 + a;
 }
 
 /** Summary counts + a page-1 verification sample. */
 export function report(db) {
-  const count = (sql) => db.prepare(sql).get().n;
+  const count = (sql) => Number(db.prepare(sql).get().n);
   const surahs = count('SELECT COUNT(*) n FROM surahs');
   const pages = count('SELECT COUNT(*) n FROM pages');
   const wordsAll = count('SELECT COUNT(*) n FROM words');

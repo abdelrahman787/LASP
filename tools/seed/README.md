@@ -13,11 +13,14 @@ QCF V2 page fonts.
 
 ```bash
 cd tools/seed
-npm install                 # builds better-sqlite3 (needs a C toolchain)
+# No deps to install — uses Node's built-in node:sqlite (Node 22+), no native build.
 cp .env.example .env        # then put your real QF_CLIENT_ID / QF_CLIENT_SECRET in .env
 set -a; source .env; set +a # export the vars
 npm run seed
 ```
+
+Requires **Node 22+** (for `node:sqlite`). You'll see a harmless
+`ExperimentalWarning: SQLite is an experimental feature` — that's expected.
 
 Output: `assets/quran/quran_qcf_v2.sqlite` (+ `assets/quran/fonts/` if
 `FONT_URL_TEMPLATE` is set). The script prints row counts and a page-1
@@ -30,7 +33,7 @@ and the generated `*.sqlite` are gitignored.
 ## Verify (offline, no API/creds)
 
 ```bash
-npm test        # feeds canned API-shaped data through the real DB builder
+npm test        # feeds canned API-shaped data through the real node:sqlite builder
 ```
 Asserts the exact schema, word ordering, ayah-end handling, the `pages`
 derivation, and the page-1 scope query.
