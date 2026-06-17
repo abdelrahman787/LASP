@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+.env
+# generated artifacts (build locally; do not commit secrets or large binaries)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

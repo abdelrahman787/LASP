@@ -22,3 +22,6 @@ android/key.properties
 
 # OS
 .DS_Store
+
+# Generated Quran data (build locally via tools/seed; not committed)
+assets/quran/
