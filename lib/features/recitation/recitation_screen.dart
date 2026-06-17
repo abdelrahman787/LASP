@@ -10,8 +10,11 @@ import 'package:quran_tasmee3_core/recitation/recitation_config.dart';
 import 'package:quran_tasmee3_core/recitation/recitation_controller.dart';
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
 
+import '../../app/data/quran_repository.dart';
 import '../../app/debug.dart';
 import '../../app/providers.dart';
+import '../mushaf/mushaf_page_controller.dart';
+import '../mushaf/mushaf_page_widget.dart';
 import '../report/report_screen.dart';
 
 /// Drives the [RecitationController] for one page. The mic/ASR is faked: the
@@ -35,6 +38,13 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   int _seenEvents = 0;
   bool _finishing = false;
 
+  // Page renderer (Mushaf Phase 2).
+  late final List<PageGlyph> _glyphs;
+  late final MushafPageController _pageCtrl;
+  late final Map<String, int> _wordPos; // wordId → positionInPage
+  String _surahLabel = '';
+  int? _juz;
+
   @override
   void initState() {
     super.initState();
@@ -43,12 +53,48 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     final mode = ref.read(settingsProvider).valueOrNull?.recitationConfig ??
         RecitationConfig.normal;
 
+    // Page render data: real glyphs when the bundled DB is loaded, else a
+    // simple synthesized layout from the scope (fake / tests).
+    final data = ref.read(quranDataProvider).valueOrNull;
+    final real = data?.pageGlyphs[widget.pageNumber];
+    if (real != null && real.isNotEmpty) {
+      _glyphs = real;
+    } else {
+      _glyphs = [
+        for (var i = 0; i < _scope.length; i++)
+          PageGlyph(
+            positionInPage: i,
+            lineNumber: (i ~/ 5) + 1,
+            type: 'word',
+            text: _scope[i].display,
+            isCodeV2: false,
+            wordId: _scope[i].wordId,
+            surah: _scope[i].surah,
+            ayah: _scope[i].ayah,
+          ),
+      ];
+    }
+    _wordPos = {
+      for (final g in _glyphs)
+        if (g.wordId != null) g.wordId!: g.positionInPage,
+    };
+    _pageCtrl = MushafPageController();
+    _pageCtrl.hideAllWords(); // engine hides the page on session start
+
+    if (_scope.isNotEmpty) {
+      final fw = _scope.first;
+      _surahLabel = 'سورة ${fw.surah}';
+      final meta =
+          data?.ayahMeta.where((a) => a.surah == fw.surah && a.ayah == fw.ayah);
+      if (meta != null && meta.isNotEmpty) _juz = meta.first.juz;
+    }
+
     _controller = RecitationController(
       scope: _scope,
       mode: mode,
       now: now,
       logger: _logger,
-      onReveal: (_) => _refresh(),
+      onReveal: _onReveal,
       onEvent: (_) => _refresh(),
     );
     _asr = ref.read(asrServiceProvider);
@@ -107,8 +153,34 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   void dispose() {
     _silenceTimer?.cancel();
     _asr.stop();
+    _pageCtrl.dispose();
     super.dispose();
   }
+
+  /// Every reveal (correct match, manual reveal, or re-anchor) flows through the
+  /// controller's onReveal as a SCOPE index; map it to the page glyph position
+  /// and reveal it on the real page, plus any trailing medallion/pause glyphs.
+  void _onReveal(int scopeIndex) {
+    if (scopeIndex < 0 || scopeIndex >= _scope.length) return;
+    final pos = _wordPos[_scope[scopeIndex].wordId];
+    if (pos != null) {
+      _pageCtrl.revealWord(pos);
+      _revealTrailingMarks(pos);
+    }
+    _refresh();
+  }
+
+  /// Reveal ayah-end medallions / pause marks that immediately follow a just-
+  /// revealed word (glyph list is in positionInPage order, so index == pos).
+  void _revealTrailingMarks(int pos) {
+    for (var j = pos + 1; j < _glyphs.length && !_glyphs[j].isWord; j++) {
+      _pageCtrl.revealWord(_glyphs[j].positionInPage);
+    }
+  }
+
+  int? get _cursorPosition => _controller.cursor < _scope.length
+      ? _wordPos[_scope[_controller.cursor].wordId]
+      : null;
 
   void _refresh() {
     if (!mounted) return;
@@ -224,22 +296,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               child: const Text('… نستمع', textAlign: TextAlign.center),
             ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                textDirection: TextDirection.rtl,
-                children: [
-                  for (var i = 0; i < _scope.length; i++)
-                    _WordChip(
-                      text: _scope[i].display,
-                      revealed: _controller.revealedIndices.contains(i),
-                      isCursor: i == _controller.cursor,
-                    ),
-                ],
-              ),
+            child: MushafPageWidget(
+              pageNumber: widget.pageNumber,
+              glyphs: _glyphs,
+              controller: _pageCtrl,
+              currentPosition: _cursorPosition,
+              surahName: _surahLabel,
+              juz: _juz,
+              onHome: () => Navigator.of(context).maybePop(),
             ),
           ),
           const Divider(height: 1),
@@ -295,42 +359,6 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _WordChip extends StatelessWidget {
-  final String text;
-  final bool revealed;
-  final bool isCursor;
-  const _WordChip({
-    required this.text,
-    required this.revealed,
-    required this.isCursor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 250),
-      opacity: revealed ? 1 : 0.12,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: isCursor
-              ? Border.all(color: theme.colorScheme.primary, width: 2)
-              : null,
-          color: revealed
-              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-              : theme.colorScheme.surfaceContainerHighest,
-        ),
-        child: Text(
-          revealed ? text : '•••',
-          style: theme.textTheme.titleLarge,
-        ),
       ),
     );
   }

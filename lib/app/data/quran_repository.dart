@@ -70,12 +70,40 @@ class FakeQuranRepository implements QuranRepository {
 // app falls back to [FakeQuranRepository].
 // =============================================================================
 
+/// One rendered glyph on a page: a word, an ayah-end medallion, or a pause
+/// mark. `text` is the `code_v2` glyph (rendered with the page font) when
+/// available, else the Uthmani display text (fallback / fake data).
+class PageGlyph {
+  final int positionInPage; // 0-based reading order on the page (all glyphs)
+  final int lineNumber; // 1..15
+  final String type; // 'word' | 'ayah_end' | 'pause_mark' | …
+  final String text;
+  final bool isCodeV2;
+  final String? wordId; // set for word glyphs
+  final int surah;
+  final int ayah;
+
+  const PageGlyph({
+    required this.positionInPage,
+    required this.lineNumber,
+    required this.type,
+    required this.text,
+    required this.isCodeV2,
+    required this.wordId,
+    required this.surah,
+    required this.ayah,
+  });
+
+  bool get isWord => type == 'word';
+}
+
 /// Everything the app needs from the bundled mushaf, held in memory.
 class QuranData {
   final List<int> pages;
-  final Map<int, List<ExpectedWord>> pageWords;
+  final Map<int, List<ExpectedWord>> pageWords; // recitation scope (words only)
+  final Map<int, List<PageGlyph>> pageGlyphs; // full page render data
   final List<AyahMeta> ayahMeta;
-  const QuranData(this.pages, this.pageWords, this.ayahMeta);
+  const QuranData(this.pages, this.pageWords, this.pageGlyphs, this.ayahMeta);
 }
 
 const String _kDbAsset = 'assets/quran/quran_qcf_v2.sqlite';
@@ -97,25 +125,46 @@ Future<QuranData> loadQuranData() async {
 
   final db = await openDatabase(dbPath, readOnly: true);
   try {
-    final wordRows = await db.rawQuery(
-      "SELECT id, surah, ayah, word_index, page_number, uthmani_text "
-      "FROM words WHERE word_type='word' "
-      "ORDER BY page_number, word_position_in_page",
+    // All glyphs (words + ayah-end medallions + pause marks) in reading order.
+    final rows = await db.rawQuery(
+      "SELECT id, surah, ayah, word_index, page_number, line_number, "
+      "word_position_in_page, uthmani_text, code_v2, word_type "
+      "FROM words ORDER BY page_number, word_position_in_page",
     );
     final pageWords = <int, List<ExpectedWord>>{};
-    for (final r in wordRows) {
+    final pageGlyphs = <int, List<PageGlyph>>{};
+    for (final r in rows) {
       final page = r['page_number'] as int;
+      final type = (r['word_type'] as String?) ?? 'word';
       final display = (r['uthmani_text'] as String?) ?? '';
-      (pageWords[page] ??= []).add(ExpectedWord(
-        wordId: r['id'] as String,
-        surah: r['surah'] as int,
-        ayah: r['ayah'] as int,
-        wordIndex: r['word_index'] as int,
-        norm: normalizeForMatch(display),
-        display: display,
+      final code = (r['code_v2'] as String?) ?? '';
+      final surah = r['surah'] as int;
+      final ayah = r['ayah'] as int;
+      final id = r['id'] as String;
+
+      (pageGlyphs[page] ??= []).add(PageGlyph(
+        positionInPage: (r['word_position_in_page'] as int?) ?? 0,
+        lineNumber: (r['line_number'] as int?) ?? 0,
+        type: type,
+        text: code.isNotEmpty ? code : display,
+        isCodeV2: code.isNotEmpty,
+        wordId: type == 'word' ? id : null,
+        surah: surah,
+        ayah: ayah,
       ));
+
+      if (type == 'word') {
+        (pageWords[page] ??= []).add(ExpectedWord(
+          wordId: id,
+          surah: surah,
+          ayah: ayah,
+          wordIndex: (r['word_index'] as int?) ?? 0,
+          norm: normalizeForMatch(display),
+          display: display,
+        ));
+      }
     }
-    final pages = pageWords.keys.toList()..sort();
+    final pages = pageGlyphs.keys.toList()..sort();
 
     final metaRows = await db.rawQuery(
       "SELECT DISTINCT w.surah AS surah, w.ayah AS ayah, "
@@ -133,7 +182,7 @@ Future<QuranData> loadQuranData() async {
         ),
     ];
 
-    return QuranData(pages, pageWords, ayahMeta);
+    return QuranData(pages, pageWords, pageGlyphs, ayahMeta);
   } finally {
     await db.close();
   }
