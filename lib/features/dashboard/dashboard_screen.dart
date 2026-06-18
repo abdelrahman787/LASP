@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quran_tasmee3_core/review/models.dart';
 
 import '../../app/providers.dart';
+import '../../app/widgets/glass.dart';
+import '../bookmarks/bookmarks_screen.dart';
 import '../plans/plans_screen.dart';
 import '../recitation/recitation_screen.dart';
 import '../review/start_review.dart';
@@ -32,6 +34,12 @@ class DashboardScreen extends ConsumerWidget {
               ref.read(themeModeProvider.notifier).state =
                   cur == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
             },
+          ),
+          IconButton(
+            tooltip: 'المرجعيات',
+            icon: const Icon(Icons.bookmarks_outlined),
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BookmarksScreen())),
           ),
           IconButton(
             tooltip: 'الخطط',
@@ -88,43 +96,45 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _streakStrip(ThemeData theme, DashboardData data) {
-    return Row(
-      children: [
-        const Icon(Icons.local_fire_department, color: Colors.orange),
-        const SizedBox(width: 6),
-        Text('${data.streakDays} يوم متتالٍ', style: theme.textTheme.bodyMedium),
-        const Spacer(),
-        Text('أُتقن: ${data.weakAyat.where((w) => w.masteryScore >= 0.9).length}',
-            style: theme.textTheme.bodySmall),
-      ],
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          const Icon(Icons.local_fire_department, color: Color(0xFFF59B63)),
+          const SizedBox(width: 6),
+          Text('${data.streakDays} يوم متتالٍ', style: theme.textTheme.bodyMedium),
+          const Spacer(),
+          Text('أُتقن: ${data.weakAyat.where((w) => w.masteryScore >= 0.9).length}',
+              style: theme.textTheme.bodySmall),
+        ],
+      ),
     );
   }
 
   Widget _todaysReviewCard(
       BuildContext context, WidgetRef ref, ThemeData theme, DashboardData data) {
     final due = data.dueToday;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('مراجعة اليوم', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text('${due.length} عنصر مستحق', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(value: data.dailyProgress),
-                ),
-                const SizedBox(width: 8),
-                Text('${data.reviewedToday}/${data.dailyTarget}',
-                    style: theme.textTheme.bodySmall),
-              ],
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('مراجعة اليوم', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text('${due.length} عنصر مستحق', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: LiquidProgress(value: data.dailyProgress)),
+              const SizedBox(width: 8),
+              Text('${data.reviewedToday}/${data.dailyTarget}',
+                  style: theme.textTheme.bodySmall),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
               icon: const Icon(Icons.play_arrow),
               label: const Text('ابدأ المراجعة'),
               onPressed: due.isEmpty
@@ -132,8 +142,8 @@ class DashboardScreen extends ConsumerWidget {
                   : () => startReview(context, ref,
                       planId: data.autoPlan.id, item: due.first),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -154,19 +164,36 @@ class DashboardScreen extends ConsumerWidget {
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Text('لا توجد أخطاء مسجّلة بعد — ابدأ جلسة تسميع.'),
           ),
+        const SizedBox(height: 8),
         for (final entry in bySurah.entries) ...[
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 2),
-            child: Text('سورة ${entry.key}',
-                style: theme.textTheme.titleSmall),
+            padding: const EdgeInsets.only(top: 8, bottom: 6),
+            child: Text('سورة ${entry.key}', style: theme.textTheme.titleSmall),
           ),
-          for (final w in entry.value)
-            ListTile(
-              dense: true,
-              title: Text('${w.surah}:${w.ayah}'),
-              subtitle: LinearProgressIndicator(value: w.masteryScore),
-              trailing: Text('${w.totalErrors} خطأ'),
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Column(
+              children: [
+                for (final w in entry.value)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 56,
+                          child: Text('${w.surah}:${w.ayah}',
+                              style: theme.textTheme.bodyMedium),
+                        ),
+                        Expanded(child: LiquidProgress(value: w.masteryScore)),
+                        const SizedBox(width: 10),
+                        StatusChip('${w.totalErrors} خطأ',
+                            color: theme.colorScheme.error),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ],
     );

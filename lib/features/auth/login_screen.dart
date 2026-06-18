@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../app/widgets/glass.dart';
 
 /// Email/password register + login (Backend Phase 1). The [AuthGate] swaps to
 /// the dashboard automatically once `authStateChanges` emits a user.
@@ -79,10 +80,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
+            child: GlassCard(
+              padding: const EdgeInsets.all(24),
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Icon(Icons.menu_book_rounded,
+                    size: 56, color: theme.colorScheme.primary),
+                const SizedBox(height: 16),
                 Text(_isRegister ? 'إنشاء حساب' : 'تسجيل الدخول',
                     style: theme.textTheme.headlineSmall,
                     textAlign: TextAlign.center),
@@ -131,6 +137,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

@@ -17,6 +17,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
+  google_fonts: ^6.2.1            # IBM Plex Sans Arabic / Noto Naskh Arabic
   quran_tasmee3_core:
     path: packages/quran_tasmee3_core
 

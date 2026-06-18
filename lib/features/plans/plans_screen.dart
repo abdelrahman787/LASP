@@ -5,6 +5,7 @@ import 'package:quran_tasmee3_core/review/models.dart';
 import 'package:quran_tasmee3_core/review/plan_service.dart';
 
 import '../../app/providers.dart';
+import '../../app/widgets/glass.dart';
 import '../review/start_review.dart';
 
 /// Lists plans and supports custom-plan creation (Review Plans Phase 5).
@@ -27,27 +28,30 @@ class PlansScreen extends ConsumerWidget {
         data: (list) => list.isEmpty
             ? const Center(child: Text('لا توجد خطط بعد.'))
             : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 children: [
                   for (final p in list)
-                    Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        title: Text(p.name),
-                        subtitle: Text(
-                            '${p.items.length} عنصر · الهدف اليومي ${p.dailyTarget}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () async {
-                            await ref
-                                .read(planServiceProvider)
-                                .deletePlan(p.id);
-                            ref.invalidate(plansListProvider);
-                          },
-                        ),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => PlanDetailScreen(planId: p.id)),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: GlassCard(
+                        padding: EdgeInsets.zero,
+                        child: ListTile(
+                          title: Text(p.name),
+                          subtitle: Text(
+                              '${p.items.length} عنصر · الهدف اليومي ${p.dailyTarget}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () async {
+                              await ref
+                                  .read(planServiceProvider)
+                                  .deletePlan(p.id);
+                              ref.invalidate(plansListProvider);
+                            },
+                          ),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => PlanDetailScreen(planId: p.id)),
+                          ),
                         ),
                       ),
                     ),
@@ -169,45 +173,88 @@ class PlanDetailScreen extends ConsumerWidget {
             return const Center(child: Text('الخطة غير موجودة.'));
           }
           final now = DateTime.now().millisecondsSinceEpoch;
+          final theme = Theme.of(context);
           return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
+              // Header — clean vertical stacking, no overlapping text (correction #4).
+              GlassCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(plan.name, style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${plan.items.length} عنصر · الهدف اليومي ${plan.dailyTarget}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               for (final item in plan.items)
-                ListTile(
-                  title: Text(item.isRange
-                      ? '${item.surah}:${item.ayah}-${item.ayahEnd}'
-                      : '${item.surah}:${item.ayah}'),
-                  subtitle: Text('الحالة: ${_statusLabels[item.status]} · '
-                      'الفاصل ${item.intervalDays}ي · ${_due(item.dueAt, now)}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'ابدأ المراجعة',
-                        icon: const Icon(Icons.play_arrow),
-                        onPressed: () =>
-                            startReview(context, ref, planId: plan.id, item: item),
-                      ),
-                      IconButton(
-                        tooltip: 'تأجيل ٣ أيام',
-                        icon: const Icon(Icons.snooze),
-                        onPressed: () async {
-                          await ref
-                              .read(planServiceProvider)
-                              .snoozePlanItem(plan.id, item.id, 3);
-                          ref.invalidate(plansListProvider);
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'إعادة تعيين',
-                        icon: const Icon(Icons.restart_alt),
-                        onPressed: () async {
-                          await ref
-                              .read(planServiceProvider)
-                              .resetPlanItem(plan.id, item.id);
-                          ref.invalidate(plansListProvider);
-                        },
-                      ),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.isRange
+                                    ? '${item.surah}:${item.ayah}-${item.ayahEnd}'
+                                    : '${item.surah}:${item.ayah}',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                            ),
+                            StatusChip(_statusLabels[item.status] ?? '',
+                                color: _statusColor(theme, item.status)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'الفاصل ${item.intervalDays}ي · ${_due(item.dueAt, now)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              tooltip: 'ابدأ المراجعة',
+                              icon: const Icon(Icons.play_arrow),
+                              onPressed: () => startReview(context, ref,
+                                  planId: plan.id, item: item),
+                            ),
+                            IconButton(
+                              tooltip: 'تأجيل ٣ أيام',
+                              icon: const Icon(Icons.snooze),
+                              onPressed: () async {
+                                await ref
+                                    .read(planServiceProvider)
+                                    .snoozePlanItem(plan.id, item.id, 3);
+                                ref.invalidate(plansListProvider);
+                              },
+                            ),
+                            IconButton(
+                              tooltip: 'إعادة تعيين',
+                              icon: const Icon(Icons.restart_alt),
+                              onPressed: () async {
+                                await ref
+                                    .read(planServiceProvider)
+                                    .resetPlanItem(plan.id, item.id);
+                                ref.invalidate(plansListProvider);
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],
@@ -215,5 +262,18 @@ class PlanDetailScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  static Color _statusColor(ThemeData theme, PlanItemStatus s) {
+    switch (s) {
+      case PlanItemStatus.mastered:
+        return theme.colorScheme.secondary;
+      case PlanItemStatus.due:
+        return theme.colorScheme.error;
+      case PlanItemStatus.scheduled:
+        return theme.colorScheme.primary;
+      case PlanItemStatus.newItem:
+        return theme.colorScheme.tertiary;
+    }
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
 
+import '../../app/widgets/glass.dart';
+
 /// Post-session report (spec Phase 6): score, per-ayah accuracy, and the five
 /// Arabic error categories.
 class ReportScreen extends StatelessWidget {
@@ -27,44 +29,59 @@ class ReportScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (summary != null)
-            Card(
-              color: theme.colorScheme.primaryContainer,
-              child: ListTile(
-                leading: const Icon(Icons.check_circle),
-                title: Text(summary!),
-              ),
-            ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          if (summary != null) ...[
+            GlassCard(
+              fill: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              child: Row(
                 children: [
-                  Text('التقييم', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text('$pct%', style: theme.textTheme.displaySmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    'أخطاء مؤكدة: ${report.confirmedErrors} · '
-                    'أخطاء مبدئية: ${report.softErrors} · '
-                    'إجمالي الكلمات: ${report.totalWords}',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Icon(Icons.check_circle, color: theme.colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(summary!)),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text('الدقة لكل آية', style: theme.textTheme.titleMedium),
-          for (final a in report.perAyah)
-            ListTile(
-              dense: true,
-              title: Text('${a.surah}:${a.ayah}'),
-              trailing: Text('${(a.accuracy * 100).round()}%'),
-              subtitle: LinearProgressIndicator(value: a.accuracy),
+            const SizedBox(height: 12),
+          ],
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('التقييم', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text('$pct%',
+                    style: theme.textTheme.displaySmall
+                        ?.copyWith(color: theme.colorScheme.primary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    StatusChip('مؤكدة: ${report.confirmedErrors}',
+                        color: theme.colorScheme.error),
+                    StatusChip('مبدئية: ${report.softErrors}',
+                        color: theme.colorScheme.tertiary),
+                    StatusChip('كلمات: ${report.totalWords}',
+                        color: theme.colorScheme.secondary),
+                  ],
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Text('الدقة لكل آية', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
+          // Color-coded ayah-sequence strip.
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in report.perAyah)
+                StatusChip('${a.ayah} · ${(a.accuracy * 100).round()}%',
+                    color: _accuracyColor(theme, a.accuracy)),
+            ],
+          ),
+          const SizedBox(height: 16),
           _Bucket('نسيان (المؤقّت)', report.forgetSilence),
           _Bucket('نسيان (كشف يدوي)', report.forgetManual),
           _Bucket('استبدال', report.substitutions, showExpectedVsRecognized: true),
@@ -74,6 +91,12 @@ class ReportScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static Color _accuracyColor(ThemeData theme, double acc) {
+    if (acc >= 0.9) return theme.colorScheme.secondary;
+    if (acc >= 0.6) return theme.colorScheme.tertiary;
+    return theme.colorScheme.error;
   }
 }
 
@@ -92,10 +115,14 @@ class _Bucket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: ExpansionTile(
-        title: Text('$title (${entries.length})'),
-        children: [
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        padding: EdgeInsets.zero,
+        child: ExpansionTile(
+          shape: const Border(),
+          title: Text('$title (${entries.length})'),
+          children: [
           for (final e in entries)
             ListTile(
               dense: true,
@@ -106,7 +133,8 @@ class _Bucket extends StatelessWidget {
                       ? Text('المسموع: ${e.recognizedText ?? '—'}')
                       : Text(e.wordId),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

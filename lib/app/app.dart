@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers.dart';
 import 'theme.dart';
+import 'widgets/glass.dart';
 import '../features/auth/auth_gate.dart';
 
 class QuranTasmee3App extends ConsumerWidget {
@@ -14,13 +15,14 @@ class QuranTasmee3App extends ConsumerWidget {
     return MaterialApp(
       title: 'Quran Tasmee3',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.day,
-      darkTheme: AppTheme.night,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       themeMode: themeMode,
-      // App is Arabic-first → default to RTL.
+      // App is Arabic-first → default to RTL, and paint the gradient backdrop
+      // behind every (transparent) scaffold so the glass reads against it.
       builder: (context, child) => Directionality(
         textDirection: TextDirection.rtl,
-        child: child!,
+        child: AppBackground(child: child!),
       ),
       home: const AuthGate(),
     );
