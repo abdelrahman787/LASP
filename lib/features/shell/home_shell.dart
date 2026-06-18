@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../mushaf/mushaf_reader_screen.dart';
 import '../plans/plans_screen.dart';
@@ -29,6 +30,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Pre-warm the bundled-Quran load so it's resolved before any tab needs it.
+    ref.watch(quranDataProvider);
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: NavigationBar(

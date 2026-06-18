@@ -4,48 +4,94 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/data/quran_repository.dart';
 import '../../app/providers.dart';
 import '../recitation/recitation_screen.dart';
+import 'mushaf_index_screen.dart';
 import 'mushaf_page_controller.dart';
 import 'mushaf_page_widget.dart';
 
 /// Standalone "just read the Quran" screen (Mushaf Viewer Phase 6): browse and
 /// read pages with ALL words visible, fully outside any recitation session.
-/// The تسميع button launches a recitation session for the current page.
-class MushafReaderScreen extends ConsumerStatefulWidget {
+class MushafReaderScreen extends ConsumerWidget {
   final int initialPage;
   const MushafReaderScreen({super.key, this.initialPage = 1});
 
   @override
-  ConsumerState<MushafReaderScreen> createState() => _MushafReaderScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the async data so the full 604-page list is used once it resolves
+    // (reading the repo synchronously in initState raced the SQLite load and
+    // got stuck on the 1-page fallback).
+    final dataAsync = ref.watch(quranDataProvider);
+    return dataAsync.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => const _Pager(pages: [1], initialPage: 1),
+      data: (data) {
+        final pages = (data != null && data.pages.isNotEmpty)
+            ? data.pages
+            : ref.read(quranRepositoryProvider).pages;
+        return _Pager(pages: pages, initialPage: initialPage);
+      },
+    );
+  }
 }
 
-class _MushafReaderScreenState extends ConsumerState<MushafReaderScreen> {
-  late final PageController _pageController;
-  late final List<int> _pages;
+class _Pager extends ConsumerStatefulWidget {
+  final List<int> pages;
+  final int initialPage;
+  const _Pager({required this.pages, required this.initialPage});
+
+  @override
+  ConsumerState<_Pager> createState() => _PagerState();
+}
+
+class _PagerState extends ConsumerState<_Pager> {
+  late final PageController _controller;
   late int _current;
+
+  int _indexOf(int page) {
+    final i = widget.pages.indexOf(page);
+    return i < 0 ? 0 : i;
+  }
 
   @override
   void initState() {
     super.initState();
-    _pages = ref.read(quranRepositoryProvider).pages;
-    final startIdx = _pages.indexOf(widget.initialPage);
-    _current = widget.initialPage;
-    _pageController = PageController(initialPage: startIdx < 0 ? 0 : startIdx);
+    final startIdx = _indexOf(widget.initialPage);
+    _current = widget.pages[startIdx];
+    _controller = PageController(initialPage: startIdx);
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _openIndex() async {
+    final page = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (_) => const MushafIndexScreen()),
+    );
+    if (page == null || !mounted) return;
+    final idx = _indexOf(page);
+    _controller.jumpToPage(idx);
+    setState(() => _current = widget.pages[idx]);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_pages.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('لا توجد بيانات مصحف.')),
-      );
+    if (widget.pages.isEmpty) {
+      return const Scaffold(body: Center(child: Text('لا توجد بيانات مصحف.')));
     }
     return Scaffold(
+      appBar: AppBar(
+        title: Text('المصحف · صفحة $_current'),
+        actions: [
+          IconButton(
+            tooltip: 'الفهرس',
+            icon: const Icon(Icons.search),
+            onPressed: _openIndex,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.mic),
         label: const Text('تسميع'),
@@ -55,16 +101,16 @@ class _MushafReaderScreenState extends ConsumerState<MushafReaderScreen> {
         ),
       ),
       body: PageView.builder(
-        controller: _pageController,
-        itemCount: _pages.length,
-        onPageChanged: (i) => setState(() => _current = _pages[i]),
-        itemBuilder: (context, i) => _ReaderPage(pageNumber: _pages[i]),
+        controller: _controller,
+        itemCount: widget.pages.length,
+        onPageChanged: (i) => setState(() => _current = widget.pages[i]),
+        itemBuilder: (context, i) => _ReaderPage(pageNumber: widget.pages[i]),
       ),
     );
   }
 }
 
-/// One read-only page (all words visible).
+/// One read-only page (all words visible). Top bar is the host Scaffold's.
 class _ReaderPage extends ConsumerStatefulWidget {
   final int pageNumber;
   const _ReaderPage({required this.pageNumber});
@@ -87,7 +133,8 @@ class _ReaderPageState extends ConsumerState<_ReaderPage> {
     if (real != null && real.isNotEmpty) {
       _glyphs = real;
     } else {
-      final scope = ref.read(quranRepositoryProvider).getPageWords(widget.pageNumber);
+      final scope =
+          ref.read(quranRepositoryProvider).getPageWords(widget.pageNumber);
       _glyphs = [
         for (var i = 0; i < scope.length; i++)
           PageGlyph(
@@ -127,6 +174,7 @@ class _ReaderPageState extends ConsumerState<_ReaderPage> {
       controller: _controller,
       surahName: _surahLabel,
       juz: _juz,
+      showTopBar: false, // the reader Scaffold provides the single top bar
     );
   }
 }

@@ -24,6 +24,9 @@ void main() {
               .overrideWithValue(InMemoryReviewHistoryRepository()),
           settingsRepositoryProvider
               .overrideWithValue(InMemorySettingsRepository()),
+          // Resolve Quran data immediately (no path_provider/SQLite in tests),
+          // so the reader tab doesn't sit on an indefinite loading spinner.
+          quranDataProvider.overrideWith((ref) => null),
         ],
         child: const QuranTasmee3App(),
       ),

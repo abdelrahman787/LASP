@@ -66,22 +66,28 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final lineCount = _maxLine();
+    // Build a slot ONLY for line numbers that actually have glyphs on this page
+    // (sorted). These slots then stretch to fill 100% of the height — no dead
+    // blank flex slots, so no large empty gap regardless of how many lines a
+    // page uses (e.g. the framed Al-Fatiha page uses fewer than 15).
+    final lines =
+        widget.glyphs.map((g) => g.lineNumber).where((l) => l > 0).toSet().toList()
+          ..sort();
     return Column(
       children: [
         if (widget.showTopBar) _topBar(context),
         Expanded(
           child: Container(
             color: _kCream,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: FutureBuilder<bool>(
               future: _fontReady,
               builder: (context, snap) {
                 final fontReady = snap.data ?? false;
-                // 15 lines (or the page's actual max) stretched to fill height
-                // with NO top/bottom margin — each line gets equal vertical space.
+                if (lines.isEmpty) return const SizedBox.shrink();
                 return Column(
                   children: [
-                    for (var line = 1; line <= lineCount; line++)
+                    for (final line in lines)
                       Expanded(child: _line(line, fontReady)),
                   ],
                 );
@@ -92,14 +98,6 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
         _bottomBar(context),
       ],
     );
-  }
-
-  int _maxLine() {
-    var m = 15;
-    for (final g in widget.glyphs) {
-      if (g.lineNumber > m) m = g.lineNumber;
-    }
-    return m;
   }
 
   Widget _line(int line, bool fontReady) {
@@ -116,17 +114,21 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
           // horizontal RenderFlex overflow. spaceBetween then distributes the
           // remaining space so the line still fills edge-to-edge.
           var fs = (c.maxHeight * 0.6).clamp(10.0, 40.0);
-          // Reserve each glyph's 2px horizontal padding (+ cursor border slack).
+          // Reserve per-glyph horizontal padding (2px) + the cursor-highlight
+          // border (~3px, always reserved so it's cursor-independent) + a few
+          // px of layout rounding slack.
           final budget =
-              (c.maxWidth - glyphs.length * 2 - 8).clamp(1.0, c.maxWidth);
+              (c.maxWidth - glyphs.length * 2 - 12).clamp(1.0, c.maxWidth);
           var natural = 0.0;
           for (final g in glyphs) {
             natural += _measureGlyph(g, fs, fontReady);
           }
-          if (natural > budget && natural > 0) {
-            // Shrink to fit — no lower clamp, so an unusually dense line can
-            // never overflow (real lines stay at a comfortable size).
-            fs = (fs * budget / natural).clamp(1.0, c.maxHeight);
+          // Always derive fs from the fit ratio (×0.97 safety), so even a line
+          // whose natural width is just under budget can't overflow from
+          // measurement-vs-layout rounding. No lower clamp.
+          if (natural > 0) {
+            final ratio = (budget / natural) * 0.97;
+            if (ratio < 1) fs = (fs * ratio).clamp(1.0, c.maxHeight);
           }
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -179,6 +181,10 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
               Text(
                 g.text,
                 textAlign: TextAlign.center,
+                // Mushaf text must not follow the system font-scale, and this
+                // matches the TextPainter measurement (which is unscaled), so
+                // the fit calc and the actual render agree → no overflow.
+                textScaler: TextScaler.noScaling,
                 style: TextStyle(
                   fontFamily: usePageFont
                       ? PageFontLoader.family(widget.pageNumber)

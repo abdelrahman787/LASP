@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:quran_tasmee3_core/recitation/session_report.dart';
 
 import '../../app/widgets/glass.dart';
+import '../recitation/recitation_screen.dart';
 
 /// Post-session report (spec Phase 6): score, per-ayah accuracy, and the five
 /// Arabic error categories.
@@ -11,7 +12,12 @@ class ReportScreen extends StatelessWidget {
 
   /// Optional "review complete" banner (Phase 4 loop closure).
   final String? summary;
-  const ReportScreen({super.key, required this.report, this.summary});
+
+  /// When set (page recitation, not a review), offer to continue onto this
+  /// page (mushaf page-chaining).
+  final int? continuePage;
+  const ReportScreen(
+      {super.key, required this.report, this.summary, this.continuePage});
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +97,18 @@ class ReportScreen extends StatelessWidget {
           _Bucket('زيادة', report.additions, showRecognized: true),
           _Bucket('خطأ ترتيب', report.orderErrors),
           _Bucket('نطق', report.pronunciations),
+          if (continuePage != null) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              icon: const Icon(Icons.arrow_back), // RTL: points to "next"
+              label: Text('الاستمرار لقراءة الصفحة $continuePage'),
+              onPressed: () => Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                    builder: (_) =>
+                        RecitationScreen(pageNumber: continuePage!)),
+              ),
+            ),
+          ],
         ],
       ),
     );

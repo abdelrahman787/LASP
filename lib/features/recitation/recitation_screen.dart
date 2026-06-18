@@ -273,10 +273,19 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     ref.invalidate(dashboardProvider);
     ref.invalidate(plansListProvider);
 
+    // Page-chaining: after a page recitation (not a review), offer to continue
+    // onto the next page.
+    final continuePage = (!widget.isReview &&
+            widget.pageNumber >= 1 &&
+            widget.pageNumber < 604)
+        ? widget.pageNumber + 1
+        : null;
+
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-          builder: (_) => ReportScreen(report: report, summary: summary)),
+          builder: (_) => ReportScreen(
+              report: report, summary: summary, continuePage: continuePage)),
     );
   }
 

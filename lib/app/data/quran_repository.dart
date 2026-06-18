@@ -109,6 +109,24 @@ class PageGlyph {
   bool get isWord => type == 'word';
 }
 
+/// Surah (chapter) metadata for the index screen.
+class SurahInfo {
+  final int id;
+  final String nameAr;
+  final String nameEn;
+  final String revelationPlace; // 'makkah' | 'madinah'
+  final int versesCount;
+  final int startPage;
+  const SurahInfo({
+    required this.id,
+    required this.nameAr,
+    required this.nameEn,
+    required this.revelationPlace,
+    required this.versesCount,
+    required this.startPage,
+  });
+}
+
 /// Everything the app needs from the bundled mushaf, held in memory.
 class QuranData {
   final List<int> pages;
@@ -116,8 +134,27 @@ class QuranData {
   final Map<int, List<PageGlyph>> pageGlyphs; // full page render data
   final Map<String, List<ExpectedWord>> ayahWords; // "surah:ayah" → words
   final List<AyahMeta> ayahMeta;
-  const QuranData(
-      this.pages, this.pageWords, this.pageGlyphs, this.ayahWords, this.ayahMeta);
+  final List<SurahInfo> surahs;
+  const QuranData(this.pages, this.pageWords, this.pageGlyphs, this.ayahWords,
+      this.ayahMeta, this.surahs);
+
+  /// First page of each juz (1..30), derived from ayah metadata.
+  Map<int, int> get juzStartPages {
+    final m = <int, int>{};
+    for (final a in ayahMeta) {
+      final cur = m[a.juz];
+      if (cur == null || a.page < cur) m[a.juz] = a.page;
+    }
+    return m;
+  }
+
+  /// Page for a given surah:ayah (for "go to verse"), or null.
+  int? pageForVerse(int surah, int ayah) {
+    for (final a in ayahMeta) {
+      if (a.surah == surah && a.ayah == ayah) return a.page;
+    }
+    return null;
+  }
 }
 
 const String _kDbAsset = 'assets/quran/quran_qcf_v2.sqlite';
@@ -199,7 +236,24 @@ Future<QuranData> loadQuranData() async {
         ),
     ];
 
-    return QuranData(pages, pageWords, pageGlyphs, ayahWords, ayahMeta);
+    final surahRows = await db.rawQuery(
+      "SELECT id, name_ar, name_en, revelation_place, verses_count, start_page "
+      "FROM surahs ORDER BY id",
+    );
+    final surahs = [
+      for (final r in surahRows)
+        SurahInfo(
+          id: r['id'] as int,
+          nameAr: (r['name_ar'] as String?) ?? '',
+          nameEn: (r['name_en'] as String?) ?? '',
+          revelationPlace: (r['revelation_place'] as String?) ?? '',
+          versesCount: (r['verses_count'] as int?) ?? 0,
+          startPage: (r['start_page'] as int?) ?? 1,
+        ),
+    ];
+
+    return QuranData(
+        pages, pageWords, pageGlyphs, ayahWords, ayahMeta, surahs);
   } finally {
     await db.close();
   }
