@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;family=Noto+Naskh+Arabic:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mushaf-page {
+            background-color: #F5F2E9;
+            background-image: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, rgba(0,0,0,0.02) 100%);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+        .quranic-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            height: calc(100% / 15);
+            padding: 0 1.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.03);
+        }
+        .ayah-marker {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border: 1px solid #703200;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            margin: 0 4px;
+            color: #4e2100;
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+            background: radial-gradient(circle, #fff 0%, #fdfcf0 100%);
+        }
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        /* Custom hide classes */
+        .header-hidden {
+            transform: translateY(-120%);
+        }
+        .footer-hidden {
+            transform: translateY(120%);
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#4e2100",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed-dim": "#b7c4ff",
+                    "inverse-primary": "#afc6ff",
+                    "error-container": "#ffdad6",
+                    "surface-container": "#eeedf4",
+                    "on-tertiary-fixed": "#321300",
+                    "on-tertiary-container": "#f59b63",
+                    "error": "#ba1a1a",
+                    "on-secondary-fixed-variant": "#2b418e",
+                    "background": "#faf9ff",
+                    "tertiary-container": "#703200",
+                    "surface-container-high": "#e8e7ee",
+                    "on-primary-fixed-variant": "#1d4488",
+                    "primary-container": "#194185",
+                    "surface-variant": "#e2e2e8",
+                    "tertiary-fixed": "#ffdbc8",
+                    "inverse-surface": "#2f3035",
+                    "outline-variant": "#c4c6d2",
+                    "primary-fixed": "#d9e2ff",
+                    "secondary": "#4459a7",
+                    "on-error": "#ffffff",
+                    "secondary-fixed": "#dce1ff",
+                    "inverse-on-surface": "#f1f0f7",
+                    "on-secondary": "#ffffff",
+                    "surface-container-low": "#f4f3f9",
+                    "on-tertiary-fixed-variant": "#743502",
+                    "on-surface": "#1a1b20",
+                    "on-primary": "#ffffff",
+                    "outline": "#747782",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#95aafe",
+                    "tertiary-fixed-dim": "#ffb68b",
+                    "surface-bright": "#faf9ff",
+                    "on-background": "#1a1b20",
+                    "on-secondary-container": "#243b88",
+                    "primary": "#002b66",
+                    "on-surface-variant": "#434751",
+                    "on-primary-fixed": "#001a43",
+                    "surface-tint": "#3a5da2",
+                    "surface-container-highest": "#e2e2e8",
+                    "on-primary-container": "#8eb0fb",
+                    "surface-dim": "#dad9e0",
+                    "primary-fixed-dim": "#afc6ff",
+                    "surface": "#faf9ff",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-fixed": "#001551"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "glass-margin": "8px",
+                    "stack-space": "12px",
+                    "element-gap": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "quran-text": ["Noto Naskh Arabic"],
+                    "display-ar": ["IBM Plex Sans Arabic"],
+                    "title-ar": ["IBM Plex Sans Arabic"],
+                    "headline-ar": ["IBM Plex Sans Arabic"],
+                    "body-ar-md": ["IBM Plex Sans Arabic"],
+                    "body-ar-lg": ["IBM Plex Sans Arabic"],
+                    "label-ar-sm": ["IBM Plex Sans Arabic"]
+            },
+            "fontSize": {
+                    "quran-text": ["28px", {"lineHeight": "1", "fontWeight": "400"}],
+                    "display-ar": ["32px", {"lineHeight": "48px", "fontWeight": "700"}],
+                    "title-ar": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                    "headline-ar": ["24px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-ar-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-ar-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-ar-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface antialiased overflow-hidden">
+<!-- Mushaf Main Canvas -->
+<main class="mushaf-page font-quran-text text-on-surface" style="background-position: calc(50% + 0.56px) calc(50% + 8.72px);">
+<!-- Top Bar (Floating Glass) -->
+<header class="fixed top-4 left-4 right-4 h-14 glass-panel bg-surface/60 border border-white/40 rounded-xl z-50 flex items-center justify-between px-4 shadow-lg shadow-primary/5 transition-all duration-500 ease-in-out" id="main-header">
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/20 transition-all active:scale-95 text-primary">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+<div class="flex flex-row-reverse items-center gap-4">
+<div class="w-10 h-10 flex items-center justify-center rounded-lg font-title-ar text-title-ar text-primary">٥٠</div>
+<div class="h-6 w-px bg-primary/10"></div>
+<h1 class="font-headline-ar text-headline-ar text-primary">٢. البقرة</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/20 transition-all active:scale-95 text-primary">
+<span class="material-symbols-outlined">search</span>
+</button>
+</header>
+<!-- 15 Lines of Quranic Text -->
+<div class="flex-grow flex flex-col pt-20 pb-20 overflow-y-auto overscroll-contain" id="scroll-container"><img alt="Quran Page" class="w-full h-full object-contain mix-blend-multiply opacity-90" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-krvPhxu6R6jKL7svzylF5KcaTFqzs9dJJIawpKkS9xjYKtGnU93I5Dcv0ndhiBklZzjkuySgYleT6DcC2d1QJIn4MKfc4YnCe-uqaOf9MBlQrvhieS-03XiKj1Q3ltjSv5-fJeO9OUQ7hr2jGNRHzofZ4nAR4ejQFgDVGzXcCtQ8mXp9KCA2y5ds03uAvxYgf9RGnhjuGgjs2tdRORJqaAvahUFuOcKwZF5B0G6qFb_2ZtBCHeHZHv3mE70M-uUTFbAmrxZRwuCNYnU"/></div>
+<!-- Bottom Bar (Floating Glass) -->
+<footer class="fixed bottom-4 left-4 right-4 h-14 glass-panel bg-surface/60 border border-white/40 rounded-xl z-50 flex items-center justify-between px-6 shadow-lg shadow-primary/5 transition-all duration-500 ease-in-out" id="main-footer">
+<div class="font-label-ar-sm text-label-ar-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">auto_stories</span>
+                الجزء ١
+            </div>
+<button class="flex flex-col items-center justify-center bg-primary text-white px-4 py-1 rounded-full shadow-lg active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">mic</span>
+<span class="text-[10px] font-bold tracking-tighter">تسميع</span>
+</button>
+<div class="font-label-ar-sm text-label-ar-sm text-on-surface-variant flex items-center gap-1">
+                ١/٤ الحزب ١
+                <span class="material-symbols-outlined text-[18px]">format_list_bulleted</span>
+</div>
+</footer>
+<!-- Floating Action Button: Tasmee3 -->
+<!-- Decorative Side Corners -->
+<div class="fixed top-0 right-0 w-32 h-32 opacity-5 pointer-events-none">
+<svg class="w-full h-full text-tertiary" viewbox="0 0 100 100">
+<path d="M0,0 Q50,0 50,50 T100,100" fill="none" stroke="currentColor" stroke-width="2"></path>
+</svg>
+</div>
+<div class="fixed bottom-0 left-0 w-32 h-32 opacity-5 pointer-events-none rotate-180">
+<svg class="w-full h-full text-tertiary" viewbox="0 0 100 100">
+<path d="M0,0 Q50,0 50,50 T100,100" fill="none" stroke="currentColor" stroke-width="2"></path>
+</svg>
+</div>
+</main>
+<script>
+        // Auto-hide header/footer logic
+        const header = document.getElementById('main-header');
+        const footer = document.getElementById('main-footer');
+        const scrollContainer = document.getElementById('scroll-container');
+        let lastScrollTop = 0;
+
+        scrollContainer.addEventListener('scroll', () => {
+            const currentScrollTop = scrollContainer.scrollTop;
+            
+            // At the very top, always show
+            if (currentScrollTop <= 0) {
+                header.classList.remove('header-hidden');
+                footer.classList.remove('footer-hidden');
+                return;
+            }
+
+            // Detect scroll direction
+            if (currentScrollTop > lastScrollTop) {
+                // Scrolling down - Hide
+                header.classList.add('header-hidden');
+                footer.classList.add('footer-hidden');
+            } else {
+                // Scrolling up - Show
+                header.classList.remove('header-hidden');
+                footer.classList.remove('footer-hidden');
+            }
+            lastScrollTop = currentScrollTop;
+        });
+
+        // Micro-interaction for the Tasmee3 button pulse
+        document.querySelector('.fixed.bottom-24').addEventListener('click', function() {
+            const btn = this;
+            const icon = btn.querySelector('.material-symbols-outlined');
+            
+            if(btn.dataset.recording === 'true') {
+                btn.dataset.recording = 'false';
+                btn.classList.remove('ring-4', 'ring-primary/30');
+                icon.innerText = 'mic';
+                btn.style.backgroundColor = '';
+            } else {
+                btn.dataset.recording = 'true';
+                btn.classList.add('ring-4', 'ring-primary/30');
+                icon.innerText = 'graphic_eq';
+                btn.style.backgroundColor = '#ba1a1a'; // Visual change to signify recording
+            }
+        });
+
+        // Simple parallax effect for the page background
+        window.addEventListener('mousemove', (e) => {
+            const moveX = (e.clientX - window.innerWidth / 2) / 50;
+            const moveY = (e.clientY - window.innerHeight / 2) / 50;
+            document.querySelector('.mushaf-page').style.backgroundPosition = `calc(50% + ${moveX}px) calc(50% + ${moveY}px)`;
+        });
+    </script>
+</body></html>

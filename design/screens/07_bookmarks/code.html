@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>العلامات المرجعية - القران الكريم</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;family=Noto+Naskh+Arabic:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-background": "#1a1b20",
+                    "surface-bright": "#faf9ff",
+                    "on-primary": "#ffffff",
+                    "tertiary": "#4e2100",
+                    "secondary": "#4459a7",
+                    "tertiary-fixed": "#ffdbc8",
+                    "on-tertiary-container": "#f59b63",
+                    "background": "#faf9ff",
+                    "inverse-primary": "#afc6ff",
+                    "inverse-on-surface": "#f1f0f7",
+                    "outline-variant": "#c4c6d2",
+                    "on-error-container": "#93000a",
+                    "surface-container-low": "#f4f3f9",
+                    "surface": "#faf9ff",
+                    "on-error": "#ffffff",
+                    "secondary-container": "#95aafe",
+                    "secondary-fixed": "#dce1ff",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed-dim": "#afc6ff",
+                    "on-secondary-fixed": "#001551",
+                    "on-primary-fixed": "#001a43",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#8eb0fb",
+                    "on-tertiary-fixed": "#321300",
+                    "surface-container-highest": "#e2e2e8",
+                    "on-tertiary-fixed-variant": "#743502",
+                    "primary": "#002b66",
+                    "on-surface-variant": "#434751",
+                    "outline": "#747782",
+                    "on-primary-fixed-variant": "#1d4488",
+                    "tertiary-fixed-dim": "#ffb68b",
+                    "error-container": "#ffdad6",
+                    "error": "#ba1a1a",
+                    "primary-fixed": "#d9e2ff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-variant": "#e2e2e8",
+                    "secondary-fixed-dim": "#b7c4ff",
+                    "surface-dim": "#dad9e0",
+                    "surface-container-high": "#e8e7ee",
+                    "inverse-surface": "#2f3035",
+                    "on-secondary-container": "#243b88",
+                    "primary-container": "#194185",
+                    "on-surface": "#1a1b20",
+                    "on-secondary-fixed-variant": "#2b418e",
+                    "surface-tint": "#3a5da2",
+                    "surface-container": "#eeedf4",
+                    "tertiary-container": "#703200"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-space": "12px",
+                    "element-gap": "16px",
+                    "glass-margin": "8px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "body-ar-md": ["IBM Plex Sans Arabic"],
+                    "title-ar": ["IBM Plex Sans Arabic"],
+                    "quran-text": ["Noto Naskh Arabic"],
+                    "headline-ar": ["IBM Plex Sans Arabic"],
+                    "label-ar-sm": ["IBM Plex Sans Arabic"],
+                    "body-ar-lg": ["IBM Plex Sans Arabic"],
+                    "display-ar": ["IBM Plex Sans Arabic"]
+            },
+            "fontSize": {
+                    "body-ar-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "title-ar": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                    "quran-text": ["28px", {"lineHeight": "56px", "fontWeight": "400"}],
+                    "headline-ar": ["24px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "headline-ar-mobile": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                    "label-ar-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "body-ar-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "display-ar": ["32px", {"lineHeight": "48px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background: radial-gradient(circle at 50% 50%, #faf9ff 0%, #e2e2e8 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top-width: 1.5px;
+            border-right-width: 1.5px;
+        }
+
+        .glass-card-hover {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass-card-hover:hover {
+            background: rgba(149, 170, 254, 0.15);
+            transform: translateY(-2px);
+            border-color: rgba(149, 170, 254, 0.4);
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .periwinkle-glow {
+            box-shadow: 0 0 20px rgba(149, 170, 254, 0.2);
+        }
+
+        /* Swipe to delete simulation */
+        .bookmark-item {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .swipe-content {
+            transition: transform 0.3s ease;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="font-body-ar-md text-on-surface">
+<!-- Background Decoration -->
+
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 bg-surface/60 backdrop-blur-xl border-b border-white/20 h-16 flex flex-row-reverse justify-between items-center px-container-padding">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-white/10 rounded-full transition-all duration-300">
+<span class="material-symbols-outlined text-primary" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline-ar-mobile text-headline-ar-mobile text-primary">العلامات المرجعية</h1>
+</div>
+<button class="p-2 hover:bg-white/10 rounded-full transition-all duration-300">
+<span class="material-symbols-outlined text-primary" data-icon="search">search</span>
+</button>
+</header>
+<main class="relative z-10 pt-24 pb-32 px-container-padding max-w-4xl mx-auto">
+<!-- Bookmarks List Section -->
+<section class="space-y-4">
+<div class="flex justify-between items-center mb-6 px-2">
+<h2 class="font-title-ar text-title-ar text-primary">المحفوظات الأخيرة</h2>
+<span class="text-label-ar-sm text-on-surface-variant bg-secondary-container/20 px-3 py-1 rounded-full">٤ علامات</span>
+</div>
+<!-- Bookmark Tile 1 -->
+<div class="bookmark-item group">
+<div class="absolute inset-0 bg-error/10 flex items-center justify-end px-6 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-error" data-icon="delete">delete</span>
+</div>
+<div class="swipe-content liquid-glass glass-card-hover rounded-xl p-5 flex flex-row-reverse items-center gap-4 cursor-pointer relative z-10">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary periwinkle-glow">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+</div>
+<div class="flex-1 flex flex-col items-end">
+<h3 class="font-title-ar text-primary">سورة البقرة:٢٥٥</h3>
+<p class="text-label-ar-sm text-on-surface-variant">صفحة ٢٥٥</p>
+</div>
+<div class="flex flex-col items-start gap-1">
+<span class="text-xs text-outline font-body-ar-md">أضيف في ١٢ أكتوبر</span>
+<span class="material-symbols-outlined text-outline/40 text-sm" data-icon="chevron_left">chevron_left</span>
+</div>
+</div>
+</div>
+<!-- Bookmark Tile 2 -->
+<div class="bookmark-item group">
+<div class="absolute inset-0 bg-error/10 flex items-center justify-end px-6 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-error" data-icon="delete">delete</span>
+</div>
+<div class="swipe-content liquid-glass glass-card-hover rounded-xl p-5 flex flex-row-reverse items-center gap-4 cursor-pointer relative z-10 border-r-4 border-r-secondary-container">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary periwinkle-glow">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+</div>
+<div class="flex-1 flex flex-col items-end">
+<h3 class="font-title-ar text-primary">سورة الكهف:١٠</h3>
+<p class="text-label-ar-sm text-on-surface-variant">صفحة ٣٠٠</p>
+</div>
+<div class="flex flex-col items-start gap-1">
+<span class="text-xs text-outline font-body-ar-md">أضيف في ١٠ أكتوبر</span>
+<span class="material-symbols-outlined text-outline/40 text-sm" data-icon="chevron_left">chevron_left</span>
+</div>
+</div>
+</div>
+<!-- Bookmark Tile 3 -->
+<div class="bookmark-item group">
+<div class="absolute inset-0 bg-error/10 flex items-center justify-end px-6 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-error" data-icon="delete">delete</span>
+</div>
+<div class="swipe-content liquid-glass glass-card-hover rounded-xl p-5 flex flex-row-reverse items-center gap-4 cursor-pointer relative z-10">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary periwinkle-glow">
+<span class="material-symbols-outlined" data-icon="bookmark">bookmark</span>
+</div>
+<div class="flex-1 flex flex-col items-end">
+<h3 class="font-title-ar text-primary">سورة مريم:١</h3>
+<p class="text-label-ar-sm text-on-surface-variant">صفحة ٤٢٠</p>
+</div>
+<div class="flex flex-col items-start gap-1">
+<span class="text-xs text-outline font-body-ar-md">أضيف في ٨ أكتوبر</span>
+<span class="material-symbols-outlined text-outline/40 text-sm" data-icon="chevron_left">chevron_left</span>
+</div>
+</div>
+</div>
+<!-- Bookmark Tile 4 -->
+<div class="bookmark-item group">
+<div class="absolute inset-0 bg-error/10 flex items-center justify-end px-6 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-error" data-icon="delete">delete</span>
+</div>
+<div class="swipe-content liquid-glass glass-card-hover rounded-xl p-5 flex flex-row-reverse items-center gap-4 cursor-pointer relative z-10">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary periwinkle-glow">
+<span class="material-symbols-outlined" data-icon="star">star</span>
+</div>
+<div class="flex-1 flex flex-col items-end">
+<h3 class="font-title-ar text-primary">سورة يوسف:٥٠</h3>
+<p class="text-label-ar-sm text-on-surface-variant">صفحة ٥٠</p>
+</div>
+<div class="flex flex-col items-start gap-1">
+<span class="text-xs text-outline font-body-ar-md">أضيف في ٥ أكتوبر</span>
+<span class="material-symbols-outlined text-outline/40 text-sm" data-icon="chevron_left">chevron_left</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Empty State Section -->
+<section class="mt-20 flex flex-col items-center justify-center text-center px-container-padding">
+<div class="w-32 h-32 mb-6 relative">
+<div class="absolute inset-0 bg-secondary-container/20 blur-3xl rounded-full"></div>
+<div class="relative z-10 w-full h-full flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined !text-6xl opacity-40" data-icon="bookmark_border">bookmark_border</span>
+</div>
+</div>
+<h3 class="font-headline-ar text-on-surface-variant mb-2">لا توجد علامات محفوظة بعد</h3>
+<p class="text-body-ar-md text-outline max-w-xs mx-auto">
+                ابدأ بحفظ الآيات التي تود العودة إليها لاحقاً لتظهر هنا في القائمة.
+            </p>
+<button class="mt-8 liquid-glass px-8 py-3 rounded-full text-primary font-medium hover:bg-primary/5 transition-all active:scale-95 border-primary/20">
+                استكشف المصحف
+            </button>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-glass-margin inset-x-glass-margin rounded-xl z-50 bg-surface/60 backdrop-blur-3xl border border-white/40 shadow-lg shadow-primary/5 flex flex-row-reverse justify-around items-center p-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-label-ar-sm text-label-ar-sm">المصحف</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container/80 text-on-secondary-container rounded-lg px-4 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="event_note" style="font-variation-settings: 'FILL' 1;">event_note</span>
+<span class="font-label-ar-sm text-label-ar-sm">الخطط</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-ar-sm text-label-ar-sm">الإحصائيات</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-ar-sm text-label-ar-sm">الإعدادات</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for swiping
+        document.querySelectorAll('.bookmark-item').forEach(item => {
+            let startX = 0;
+            const content = item.querySelector('.swipe-content');
+            
+            item.addEventListener('touchstart', (e) => {
+                startX = e.touches[0].clientX;
+            });
+            
+            item.addEventListener('touchmove', (e) => {
+                const diff = e.touches[0].clientX - startX;
+                // Only allow right-to-left swipe for RTL delete
+                if (diff < 0 && diff > -100) {
+                    content.style.transform = `translateX(${diff}px)`;
+                }
+            });
+            
+            item.addEventListener('touchend', () => {
+                content.style.transform = 'translateX(0)';
+            });
+        });
+    </script>
+</body></html>

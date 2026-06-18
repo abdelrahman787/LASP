@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;family=Noto+Naskh+Arabic:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            user-select: none;
+        }
+        .glass-row {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-row:hover {
+            background: rgba(255, 255, 255, 0.6);
+            transform: translateY(-1px);
+        }
+        .liquid-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4459a7;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(68, 89, 167, 0.3);
+        }
+        .liquid-thumb::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4459a7;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        body {
+            background: radial-gradient(circle at 0% 0%, #f4f3f9 0%, #faf9ff 100%);
+            min-height: 100vh;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#1a1b20",
+                        "surface-bright": "#faf9ff",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#4e2100",
+                        "secondary": "#4459a7",
+                        "tertiary-fixed": "#ffdbc8",
+                        "on-tertiary-container": "#f59b63",
+                        "background": "#faf9ff",
+                        "inverse-primary": "#afc6ff",
+                        "inverse-on-surface": "#f1f0f7",
+                        "outline-variant": "#c4c6d2",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f4f3f9",
+                        "surface": "#faf9ff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#95aafe",
+                        "secondary-fixed": "#dce1ff",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#afc6ff",
+                        "on-secondary-fixed": "#001551",
+                        "on-primary-fixed": "#001a43",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#8eb0fb",
+                        "on-tertiary-fixed": "#321300",
+                        "surface-container-highest": "#e2e2e8",
+                        "on-tertiary-fixed-variant": "#743502",
+                        "primary": "#002b66",
+                        "on-surface-variant": "#434751",
+                        "outline": "#747782",
+                        "on-primary-fixed-variant": "#1d4488",
+                        "tertiary-fixed-dim": "#ffb68b",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#d9e2ff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e2e2e8",
+                        "secondary-fixed-dim": "#b7c4ff",
+                        "surface-dim": "#dad9e0",
+                        "surface-container-high": "#e8e7ee",
+                        "inverse-surface": "#2f3035",
+                        "on-secondary-container": "#243b88",
+                        "primary-container": "#194185",
+                        "on-surface": "#1a1b20",
+                        "on-secondary-fixed-variant": "#2b418e",
+                        "surface-tint": "#3a5da2",
+                        "surface-container": "#eeedf4",
+                        "tertiary-container": "#703200"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-space": "12px",
+                        "element-gap": "16px",
+                        "glass-margin": "8px",
+                        "container-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "body-ar-md": ["IBM Plex Sans Arabic"],
+                        "title-ar": ["IBM Plex Sans Arabic"],
+                        "quran-text": ["Noto Naskh Arabic"],
+                        "headline-ar": ["IBM Plex Sans Arabic"],
+                        "label-ar-sm": ["IBM Plex Sans Arabic"],
+                        "body-ar-lg": ["IBM Plex Sans Arabic"],
+                        "display-ar": ["IBM Plex Sans Arabic"]
+                    },
+                    "fontSize": {
+                        "body-ar-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-ar": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                        "quran-text": ["28px", {"lineHeight": "56px", "fontWeight": "400"}],
+                        "headline-ar": ["24px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "label-ar-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "body-ar-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "display-ar": ["32px", {"lineHeight": "48px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-ar-md text-on-surface">
+<!-- Top AppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/60 backdrop-blur-xl border-b border-white/20 h-16 flex flex-row-reverse justify-between items-center px-container-padding">
+<h1 class="font-display-ar text-display-ar text-primary text-2xl">الإعدادات</h1>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-all duration-300">
+<span class="material-symbols-outlined text-primary">arrow_forward</span>
+</button>
+<div class="w-10"></div> <!-- Spacer for balance -->
+</header>
+<main class="pt-24 pb-32 px-container-padding max-w-2xl mx-auto space-y-8">
+<!-- Section: Account -->
+<section class="space-y-3">
+<h2 class="font-headline-ar text-headline-ar text-primary px-2">الحساب</h2>
+<div class="glass-row rounded-2xl p-4 flex items-center gap-4">
+<div class="w-14 h-14 rounded-full overflow-hidden border-2 border-primary/10">
+<img class="w-full h-full object-cover" data-alt="A professional and serene headshot of a middle-aged man with a neat beard, wearing traditional modest attire. The lighting is soft and natural, creating a calm and respectful atmosphere. The background is a soft-focus architectural detail of a modern mosque with clean lines and a light-mode color palette of whites and soft blues, matching a spiritual and focused UI design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIAJ14ENaA1qUa2MqrFw2R19HOyJ4D4tnAXYs5mTuM3ibdWpaWcypv2JR88GxP2wne3PnvlQUYG0Ond7izW2SyUNwLkTKZrjpEg7BA59IUnEMvjRyX5BvnvBd6LJbFt_3tQCEImkdTSpUgWiq9Ih0DU6dIjNjpy-9e_4ItwxgjdBfAip0dzEx1pkclfvMktWEuRyASK1Y6RkHKvuoG4d6l6rSHZsDOlJC4JUpLHzAIcGbfkF8XG-z7Dsqke-flWSFKa4kE2g483FNs"/>
+</div>
+<div class="flex-1">
+<p class="font-title-ar text-title-ar text-on-surface">أحمد عبد الله</p>
+<p class="font-label-ar-sm text-label-ar-sm text-on-surface-variant">ahmed.abdullah@email.com</p>
+</div>
+<button class="px-4 py-2 bg-error/10 text-error rounded-xl font-label-ar-sm hover:bg-error/20 transition-colors">
+                    تسجيل الخروج
+                </button>
+</div>
+</section>
+<!-- Section: Recitation -->
+<section class="space-y-3">
+<h2 class="font-headline-ar text-headline-ar text-primary px-2">التسميع</h2>
+<div class="glass-row rounded-2xl overflow-hidden divide-y divide-white/20">
+<!-- Mode Selector -->
+<div class="p-4 flex items-center justify-between">
+<span class="font-body-ar-md">نمط التسميع الافتراضي</span>
+<div class="flex bg-surface-container rounded-lg p-1">
+<button class="px-4 py-1.5 rounded-md bg-secondary text-on-secondary text-label-ar-sm transition-all">تلقائي</button>
+<button class="px-4 py-1.5 rounded-md text-on-surface-variant text-label-ar-sm hover:bg-white/30 transition-all">يدوي</button>
+</div>
+</div>
+<!-- Daily Target -->
+<div class="p-4 space-y-4">
+<div class="flex items-center justify-between">
+<span class="font-body-ar-md">الهدف اليومي (صفحة)</span>
+<div class="flex items-center gap-4">
+<button class="w-8 h-8 rounded-full border border-outline/30 flex items-center justify-center hover:bg-white/30"><span class="material-symbols-outlined text-sm">remove</span></button>
+<span class="font-title-ar w-8 text-center">٥</span>
+<button class="w-8 h-8 rounded-full border border-outline/30 flex items-center justify-center hover:bg-white/30"><span class="material-symbols-outlined text-sm">add</span></button>
+</div>
+</div>
+</div>
+<!-- Weakness Threshold -->
+<div class="p-4 space-y-3">
+<div class="flex justify-between">
+<span class="font-body-ar-md">حساسية الخطأ</span>
+<span class="text-secondary font-label-ar-sm">متوسط</span>
+</div>
+<input class="w-full h-1.5 bg-secondary-container rounded-lg appearance-none cursor-pointer liquid-thumb" max="3" min="1" step="1" type="range" value="2"/>
+</div>
+</div>
+</section>
+<!-- Section: Appearance -->
+<section class="space-y-3">
+<h2 class="font-headline-ar text-headline-ar text-primary px-2">المظهر</h2>
+<div class="glass-row rounded-2xl overflow-hidden divide-y divide-white/20">
+<!-- Theme Switch -->
+<div class="p-4 flex items-center justify-between">
+<span class="font-body-ar-md">سمة التطبيق</span>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full bg-white border-2 border-secondary shadow-sm flex items-center justify-center"><span class="material-symbols-outlined text-secondary">light_mode</span></button>
+<button class="w-10 h-10 rounded-full bg-surface-dim border border-transparent flex items-center justify-center text-on-surface-variant"><span class="material-symbols-outlined">dark_mode</span></button>
+<button class="w-10 h-10 rounded-full bg-[#f4ecd8] border border-transparent flex items-center justify-center text-on-surface-variant"><span class="material-symbols-outlined">menu_book</span></button>
+</div>
+</div>
+<!-- Font Size -->
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-center">
+<span class="font-body-ar-md">حجم خط المصحف</span>
+<span class="text-secondary font-label-ar-sm">٢٨ بكسل</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-quran-text text-sm">أ</span>
+<input class="flex-1 h-1.5 bg-secondary-container rounded-lg appearance-none cursor-pointer liquid-thumb" max="42" min="18" type="range" value="28"/>
+<span class="font-quran-text text-2xl">أ</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Notifications -->
+<section class="space-y-3">
+<h2 class="font-headline-ar text-headline-ar text-primary px-2">الإشعارات</h2>
+<div class="glass-row rounded-2xl p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary">notifications_active</span>
+<span class="font-body-ar-md">تذكير المراجعة اليومي</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+</label>
+</div>
+</section>
+<!-- Section: About -->
+<section class="space-y-3">
+<h2 class="font-headline-ar text-headline-ar text-primary px-2">حول التطبيق</h2>
+<div class="glass-row rounded-2xl p-4">
+<p class="font-body-ar-md text-on-surface-variant mb-2">تم استقاء بيانات المصحف الشريف من مجمع الملك فهد لطباعة المصحف الشريف.</p>
+<div class="flex justify-between items-center mt-4">
+<span class="text-label-ar-sm text-outline">إصدار التطبيق ١.٢.٠</span>
+<button class="text-secondary font-label-ar-sm underline underline-offset-4">سياسة الخصوصية</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-glass-margin inset-x-glass-margin rounded-xl z-50 bg-surface/60 backdrop-blur-3xl border border-white/40 shadow-lg shadow-primary/5 flex flex-row-reverse justify-around items-center p-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-1">المصحف</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-1">الخطط</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-1">الإحصائيات</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container/80 text-on-secondary-container rounded-lg px-4 py-1 active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-1">الإعدادات</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for sliders
+        const sliders = document.querySelectorAll('input[type="range"]');
+        sliders.forEach(slider => {
+            slider.addEventListener('input', function() {
+                const value = (this.value - this.min) / (this.max - this.min) * 100;
+                this.style.background = `linear-gradient(to left, #4459a7 ${value}%, #e2e2e8 ${value}%)`;
+            });
+            // Initial trigger
+            slider.dispatchEvent(new Event('input'));
+        });
+    </script>
+</body></html>

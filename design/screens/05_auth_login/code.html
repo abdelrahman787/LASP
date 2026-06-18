@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>تسجيل الدخول - قرآن تسميع</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Noto+Naskh+Arabic:wght@400;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#4e2100",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed-dim": "#b7c4ff",
+                    "inverse-primary": "#afc6ff",
+                    "error-container": "#ffdad6",
+                    "surface-container": "#eeedf4",
+                    "on-tertiary-fixed": "#321300",
+                    "on-tertiary-container": "#f59b63",
+                    "error": "#ba1a1a",
+                    "on-secondary-fixed-variant": "#2b418e",
+                    "background": "#faf9ff",
+                    "tertiary-container": "#703200",
+                    "surface-container-high": "#e8e7ee",
+                    "on-primary-fixed-variant": "#1d4488",
+                    "primary-container": "#194185",
+                    "surface-variant": "#e2e2e8",
+                    "tertiary-fixed": "#ffdbc8",
+                    "inverse-surface": "#2f3035",
+                    "outline-variant": "#c4c6d2",
+                    "primary-fixed": "#d9e2ff",
+                    "secondary": "#4459a7",
+                    "on-error": "#ffffff",
+                    "secondary-fixed": "#dce1ff",
+                    "inverse-on-surface": "#f1f0f7",
+                    "on-secondary": "#ffffff",
+                    "surface-container-low": "#f4f3f9",
+                    "on-tertiary-fixed-variant": "#743502",
+                    "on-surface": "#1a1b20",
+                    "on-primary": "#ffffff",
+                    "outline": "#747782",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#95aafe",
+                    "tertiary-fixed-dim": "#ffb68b",
+                    "surface-bright": "#faf9ff",
+                    "on-background": "#1a1b20",
+                    "on-secondary-container": "#243b88",
+                    "primary": "#002b66",
+                    "on-surface-variant": "#434751",
+                    "on-primary-fixed": "#001a43",
+                    "surface-tint": "#3a5da2",
+                    "surface-container-highest": "#e2e2e8",
+                    "on-primary-container": "#8eb0fb",
+                    "surface-dim": "#dad9e0",
+                    "primary-fixed-dim": "#afc6ff",
+                    "surface": "#faf9ff",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-fixed": "#001551"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "glass-margin": "8px",
+                    "stack-space": "12px",
+                    "element-gap": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "quran-text": ["Noto Naskh Arabic"],
+                    "display-ar": ["IBM Plex Sans Arabic"],
+                    "title-ar": ["IBM Plex Sans Arabic"],
+                    "headline-ar": ["IBM Plex Sans Arabic"],
+                    "body-ar-md": ["IBM Plex Sans Arabic"],
+                    "body-ar-lg": ["IBM Plex Sans Arabic"],
+                    "label-ar-sm": ["IBM Plex Sans Arabic"]
+            },
+            "fontSize": {
+                    "quran-text": ["28px", {"lineHeight": "56px", "fontWeight": "400"}],
+                    "display-ar": ["32px", {"lineHeight": "48px", "fontWeight": "700"}],
+                    "title-ar": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                    "headline-ar": ["24px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-ar-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-ar-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-ar-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background: linear-gradient(135deg, #e0eafc 0%, #ffffff 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            font-family: 'IBM Plex Sans Arabic', sans-serif;
+        }
+
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(0, 43, 102, 0.05);
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.6);
+            border-color: #194185;
+            box-shadow: 0 0 0 4px rgba(25, 65, 133, 0.1);
+            outline: none;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .floating-shape {
+            position: absolute;
+            z-index: -1;
+            filter: blur(80px);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: drift 20s infinite alternate ease-in-out;
+        }
+
+        @keyframes drift {
+            from { transform: translate(0, 0) scale(1); }
+            to { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        .btn-hover-effect:active {
+            transform: scale(0.98);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex items-center justify-center p-container-padding relative">
+<!-- Background Orbs -->
+<div class="floating-shape bg-primary-fixed-dim w-[400px] h-[400px] top-[-10%] right-[-10%]"></div>
+<div class="floating-shape bg-secondary-container w-[300px] h-[300px] bottom-[-5%] left-[-5%]" style="animation-delay: -5s;"></div>
+<main class="w-full max-w-[420px] z-10">
+<!-- Login Card -->
+<div class="liquid-glass rounded-3xl p-8 md:p-10 flex flex-col items-center">
+<!-- Branding -->
+<div class="mb-8 text-center">
+<div class="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-4 mx-auto shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-on-primary-container text-4xl" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+</div>
+<h1 class="font-display-ar text-display-ar text-primary">قرآن تسميع</h1>
+<p class="font-body-ar-md text-body-ar-md text-on-surface-variant mt-1 opacity-80">رفيقك في رحلة الحفظ</p>
+</div>
+<!-- Header -->
+<div class="w-full mb-8">
+<h2 class="font-headline-ar text-headline-ar text-on-surface text-right">تسجيل الدخول</h2>
+<p class="font-body-ar-md text-body-ar-md text-on-surface-variant text-right mt-1">أهلاً بك مجدداً، تابع تقدمك في الحفظ</p>
+</div>
+<!-- Form -->
+<form class="w-full space-y-element-gap" onsubmit="return false;">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="block font-label-ar-sm text-label-ar-sm text-on-surface-variant mr-1">البريد الإلكتروني</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60">mail</span>
+<input class="glass-input w-full h-14 pr-12 pl-4 rounded-xl font-body-ar-md text-on-surface placeholder:text-on-surface-variant/40" placeholder="example@mail.com" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<label class="block font-label-ar-sm text-label-ar-sm text-on-surface-variant mr-1">كلمة المرور</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60">lock</span>
+<input class="glass-input w-full h-14 pr-12 pl-12 rounded-xl font-body-ar-md text-on-surface placeholder:text-on-surface-variant/40 border-error/30" placeholder="••••••••" type="password"/>
+<button class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60 hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+<!-- Error State Example -->
+<p class="font-label-ar-sm text-label-ar-sm text-error/80 mr-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">error</span>
+                        كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى
+                    </p>
+</div>
+<!-- Forgot Password -->
+<div class="flex justify-end">
+<a class="font-label-ar-sm text-label-ar-sm text-secondary hover:text-primary transition-colors" href="#">نسيت كلمة المرور؟</a>
+</div>
+<!-- Submit Button -->
+<button class="btn-hover-effect w-full h-14 bg-[#194185] hover:bg-primary text-white rounded-xl font-title-ar text-title-ar shadow-xl shadow-primary/10 transition-all duration-300 mt-4 flex items-center justify-center gap-2" type="submit">
+<span>دخول</span>
+<span class="material-symbols-outlined rotate-180">arrow_forward</span>
+</button>
+</form>
+<!-- Social/Secondary -->
+<div class="w-full mt-8 pt-8 border-t border-white/20">
+<div class="text-center space-y-4">
+<p class="font-body-ar-md text-body-ar-md text-on-surface-variant">
+                        ليس لديك حساب؟ 
+                        <a class="text-secondary font-bold hover:underline decoration-secondary-container" href="#">أنشئ واحدًا</a>
+</p>
+<div class="flex items-center gap-4 py-2">
+<div class="h-[1px] flex-1 bg-white/30"></div>
+<span class="font-label-ar-sm text-label-ar-sm text-on-surface-variant/60">أو عبر</span>
+<div class="h-[1px] flex-1 bg-white/30"></div>
+</div>
+<div class="flex justify-center gap-4">
+<button class="glass-input p-3 rounded-full hover:bg-white/50 transition-all">
+<img alt="Google" class="w-6 h-6 grayscale hover:grayscale-0 transition-all" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5UNZSsno9YwqQw1j-SkF23RHRuFvD4P0leVDTzZAglCXGLhd1FBLqW2jNzjbUCjPq_pUtSoHzRG_O1l7u6W6oc94M3qWSY4UM07bkSnzsgWOUm7Wy7jJkosRUOSewrQ1m0LqryjQFJ94GNRF1Bl3fl3I6Kbw0leajEXaDHWq6gV84W9pU7CJHuxFiJe0gxYyaxL3fn9H07uHixybo5QB1g40GXS9C_ZvIPUbgzA3GoyJBiUIO_jHsiiOKZMcJvHWUiaeLKq2PbjBN"/>
+</button>
+<button class="glass-input p-3 rounded-full hover:bg-white/50 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant">apps</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Help -->
+<p class="text-center mt-8 font-label-ar-sm text-label-ar-sm text-on-surface-variant/60">
+            باستمرارك، أنت توافق على <a class="underline" href="#">شروط الخدمة</a> و <a class="underline" href="#">سياسة الخصوصية</a>
+</p>
+</main>
+<script>
+        // Simple micro-interaction for password visibility toggle
+        const toggleBtn = document.querySelector('button[type="button"]');
+        const passwordInput = document.querySelector('input[type="password"]');
+        
+        if (toggleBtn && passwordInput) {
+            toggleBtn.addEventListener('click', () => {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                toggleBtn.children[0].innerText = isPassword ? 'visibility_off' : 'visibility';
+            });
+        }
+
+        // Form submission animation mock
+        const loginBtn = document.querySelector('button[type="submit"]');
+        loginBtn.addEventListener('click', (e) => {
+            const originalContent = loginBtn.innerHTML;
+            loginBtn.innerHTML = `<span class="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>`;
+            loginBtn.classList.add('opacity-80', 'pointer-events-none');
+            
+            setTimeout(() => {
+                loginBtn.innerHTML = originalContent;
+                loginBtn.classList.remove('opacity-80', 'pointer-events-none');
+            }, 1500);
+        });
+    </script>
+</body></html>

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;family=Noto+Naskh+Arabic:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .glass-sheet {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top-color: rgba(255, 255, 255, 0.7);
+            border-right-color: rgba(255, 255, 255, 0.7);
+        }
+        .liquid-shadow {
+            box-shadow: 0 10px 40px -10px rgba(0, 43, 102, 0.08);
+        }
+        .active-tab-indicator {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #faf9ff;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(149, 170, 254, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(217, 226, 255, 0.2) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+        .surah-bg-icon {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.08;
+            pointer-events: none;
+            width: 80px;
+            height: 80px;
+            z-index: 0;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary": "#4e2100",
+                      "on-error-container": "#93000a",
+                      "secondary-fixed-dim": "#b7c4ff",
+                      "inverse-primary": "#afc6ff",
+                      "error-container": "#ffdad6",
+                      "surface-container": "#eeedf4",
+                      "on-tertiary-fixed": "#321300",
+                      "on-tertiary-container": "#f59b63",
+                      "error": "#ba1a1a",
+                      "on-secondary-fixed-variant": "#2b418e",
+                      "background": "#faf9ff",
+                      "tertiary-container": "#703200",
+                      "surface-container-high": "#e8e7ee",
+                      "on-primary-fixed-variant": "#1d4488",
+                      "primary-container": "#194185",
+                      "surface-variant": "#e2e2e8",
+                      "tertiary-fixed": "#ffdbc8",
+                      "inverse-surface": "#2f3035",
+                      "outline-variant": "#c4c6d2",
+                      "primary-fixed": "#d9e2ff",
+                      "secondary": "#4459a7",
+                      "on-error": "#ffffff",
+                      "secondary-fixed": "#dce1ff",
+                      "inverse-on-surface": "#f1f0f7",
+                      "on-secondary": "#ffffff",
+                      "surface-container-low": "#f4f3f9",
+                      "on-tertiary-fixed-variant": "#743502",
+                      "on-surface": "#1a1b20",
+                      "on-primary": "#ffffff",
+                      "outline": "#747782",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-container": "#95aafe",
+                      "tertiary-fixed-dim": "#ffb68b",
+                      "surface-bright": "#faf9ff",
+                      "on-background": "#1a1b20",
+                      "on-secondary-container": "#243b88",
+                      "primary": "#002b66",
+                      "on-surface-variant": "#434751",
+                      "on-primary-fixed": "#001a43",
+                      "surface-tint": "#3a5da2",
+                      "surface-container-highest": "#e2e2e8",
+                      "on-primary-container": "#8eb0fb",
+                      "surface-dim": "#dad9e0",
+                      "primary-fixed-dim": "#afc6ff",
+                      "surface": "#faf9ff",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-fixed": "#001551"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "glass-margin": "8px",
+                      "stack-space": "12px",
+                      "element-gap": "16px",
+                      "container-padding": "24px"
+              },
+              "fontFamily": {
+                      "quran-text": ["Noto Naskh Arabic"],
+                      "display-ar": ["IBM Plex Sans Arabic"],
+                      "title-ar": ["IBM Plex Sans Arabic"],
+                      "headline-ar": ["IBM Plex Sans Arabic"],
+                      "body-ar-md": ["IBM Plex Sans Arabic"],
+                      "body-ar-lg": ["IBM Plex Sans Arabic"],
+                      "label-ar-sm": ["IBM Plex Sans Arabic"]
+              },
+              "fontSize": {
+                      "quran-text": ["28px", {"lineHeight": "56px", "fontWeight": "400"}],
+                      "display-ar": ["32px", {"lineHeight": "48px", "fontWeight": "700"}],
+                      "title-ar": ["20px", {"lineHeight": "30px", "fontWeight": "600"}],
+                      "headline-ar": ["24px", {"lineHeight": "36px", "fontWeight": "600"}],
+                      "body-ar-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-ar-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "label-ar-sm": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="font-body-ar-md text-on-surface select-none">
+<!-- Top AppBar & Search -->
+<header class="fixed top-0 w-full z-50 bg-surface/60 backdrop-blur-xl border-b border-white/20 h-32 flex flex-col justify-end pb-4">
+<div class="flex flex-row-reverse justify-between items-center px-container-padding h-16">
+<h1 class="font-display-ar text-display-ar text-primary">القرآن الكريم</h1>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-white/20 transition-all duration-300">
+<span class="material-symbols-outlined text-primary">search</span>
+</button>
+<button class="p-2 rounded-full hover:bg-white/20 transition-all duration-300">
+<span class="material-symbols-outlined text-primary">menu</span>
+</button>
+</div>
+</div>
+<!-- Search Bar -->
+<div class="px-container-padding mt-2">
+<div class="relative w-full">
+<input class="w-full h-12 glass-sheet rounded-xl px-12 text-right focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-on-surface placeholder:text-on-surface-variant/50" placeholder="ابحث عن سورة أو آية..." type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-3 text-on-surface-variant/60">search</span>
+</div>
+</div>
+</header>
+<!-- Content Spacer -->
+<div class="h-36"></div>
+<!-- Segmented Controls -->
+<nav class="sticky top-32 z-40 px-container-padding py-4">
+<div class="glass-sheet rounded-2xl p-1.5 flex flex-row-reverse gap-1 shadow-sm">
+<button class="flex-1 py-2 rounded-xl text-center font-title-ar text-title-ar transition-all duration-300 bg-secondary-container/80 text-on-secondary-container" id="tab-surah" onclick="switchTab('surah')">
+                السور
+            </button>
+<button class="flex-1 py-2 rounded-xl text-center font-title-ar text-title-ar transition-all duration-300 text-on-surface-variant hover:bg-white/10" id="tab-juz" onclick="switchTab('juz')">
+                الأجزاء
+            </button>
+</div>
+</nav>
+<!-- Main List (Surah View) -->
+<main class="px-container-padding pb-32 space-y-3" id="surah-list">
+<!-- Surah Item: Al-Fatiha (Makki) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Makki) -->
+<div class="surah-bg-icon flex items-center justify-center text-tertiary">
+https://lh3.googleusercontent.com/aida/AP1WRLsbSnNzNugymuMyOfx25D8e_ZVRsi8paAO8bHCmzv9OiNC58ILjo6yHSettXYip-wBGW8AZIVR-MlA3juG0cNVtNE_nPM3KM7KwVLcNCAtK3d0RV4A2Xow5s6OD4F3G6VkB52QyeDhBWGC2lDF37nUtX6AFJIdGYxypSZEtc6ds4bQSGkuyGIN6A8ryUTCPnd6rIMtnjITiok09vtn8LfD_0L9rsVnx4X3qpf_YduInyNzlBuPosrcG9-jd
+</div>
+<!-- Index Badge -->
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">١</span>
+</div>
+<!-- Info -->
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">الفاتحة</h3>
+<span class="text-on-surface-variant/70 text-sm">٧ آيات</span>
+</div>
+<!-- Meta -->
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: Al-Baqarah (Madani) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Madani) -->
+<div class="surah-bg-icon flex items-center justify-center text-secondary">
+https://lh3.googleusercontent.com/aida/AP1WRLvRaRT_HzaZfMi8O9rItl0-GaZUmSc1a6qj5Wkupwk-gYdjHAV9IAHPDdq8NpgGu5Ue389HcWkJ5jGLZDwkEyhGAd3W8tb8v5ERVFnAq0jh2xhFabUp3sZ_p73_B6sehTe2YS4Eqf6v6p1lUe44hU9oTrmKoC7NA6xG_ay9rf4LMVF30Xp3COaXLgHFsoIo-JUztH4go9ghOQEeJzv2CsELkXvgyGOQo3Q1z7YDynbKLUzuvStYebG5koW7
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٢</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">البقرة</h3>
+<span class="text-on-surface-variant/70 text-sm">٢٨٦ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: Aal-Imran (Madani) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Madani) -->
+<div class="surah-bg-icon flex items-center justify-center text-secondary">
+https://lh3.googleusercontent.com/aida/AP1WRLvRaRT_HzaZfMi8O9rItl0-GaZUmSc1a6qj5Wkupwk-gYdjHAV9IAHPDdq8NpgGu5Ue389HcWkJ5jGLZDwkEyhGAd3W8tb8v5ERVFnAq0jh2xhFabUp3sZ_p73_B6sehTe2YS4Eqf6v6p1lUe44hU9oTrmKoC7NA6xG_ay9rf4LMVF30Xp3COaXLgHFsoIo-JUztH4go9ghOQEeJzv2CsELkXvgyGOQo3Q1z7YDynbKLUzuvStYebG5koW7
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٣</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">آل عمران</h3>
+<span class="text-on-surface-variant/70 text-sm">٢٠٠ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: An-Nisa (Madani) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Madani) -->
+<div class="surah-bg-icon flex items-center justify-center text-secondary">
+https://lh3.googleusercontent.com/aida/AP1WRLvRaRT_HzaZfMi8O9rItl0-GaZUmSc1a6qj5Wkupwk-gYdjHAV9IAHPDdq8NpgGu5Ue389HcWkJ5jGLZDwkEyhGAd3W8tb8v5ERVFnAq0jh2xhFabUp3sZ_p73_B6sehTe2YS4Eqf6v6p1lUe44hU9oTrmKoC7NA6xG_ay9rf4LMVF30Xp3COaXLgHFsoIo-JUztH4go9ghOQEeJzv2CsELkXvgyGOQo3Q1z7YDynbKLUzuvStYebG5koW7
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٤</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">النساء</h3>
+<span class="text-on-surface-variant/70 text-sm">١٧٦ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: Al-Ma'idah (Madani) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Madani) -->
+<div class="surah-bg-icon flex items-center justify-center text-secondary">
+https://lh3.googleusercontent.com/aida/AP1WRLvRaRT_HzaZfMi8O9rItl0-GaZUmSc1a6qj5Wkupwk-gYdjHAV9IAHPDdq8NpgGu5Ue389HcWkJ5jGLZDwkEyhGAd3W8tb8v5ERVFnAq0jh2xhFabUp3sZ_p73_B6sehTe2YS4Eqf6v6p1lUe44hU9oTrmKoC7NA6xG_ay9rf4LMVF30Xp3COaXLgHFsoIo-JUztH4go9ghOQEeJzv2CsELkXvgyGOQo3Q1z7YDynbKLUzuvStYebG5koW7
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٥</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">المائدة</h3>
+<span class="text-on-surface-variant/70 text-sm">١٢٠ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: Al-An'am (Makki) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Makki) -->
+<div class="surah-bg-icon flex items-center justify-center text-tertiary">
+https://lh3.googleusercontent.com/aida/AP1WRLsbSnNzNugymuMyOfx25D8e_ZVRsi8paAO8bHCmzv9OiNC58ILjo6yHSettXYip-wBGW8AZIVR-MlA3juG0cNVtNE_nPM3KM7KwVLcNCAtK3d0RV4A2Xow5s6OD4F3G6VkB52QyeDhBWGC2lDF37nUtX6AFJIdGYxypSZEtc6ds4bQSGkuyGIN6A8ryUTCPnd6rIMtnjITiok09vtn8LfD_0L9rsVnx4X3qpf_YduInyNzlBuPosrcG9-jd
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٦</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">الأنعام</h3>
+<span class="text-on-surface-variant/70 text-sm">١٦٥ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+<!-- Surah Item: Al-A'raf (Makki) -->
+<div class="glass-sheet rounded-2xl p-4 flex flex-row-reverse items-center gap-4 liquid-shadow hover:scale-[1.01] active:scale-95 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+<!-- Background Icon (Makki) -->
+<div class="surah-bg-icon flex items-center justify-center text-tertiary">
+https://lh3.googleusercontent.com/aida/AP1WRLsbSnNzNugymuMyOfx25D8e_ZVRsi8paAO8bHCmzv9OiNC58ILjo6yHSettXYip-wBGW8AZIVR-MlA3juG0cNVtNE_nPM3KM7KwVLcNCAtK3d0RV4A2Xow5s6OD4F3G6VkB52QyeDhBWGC2lDF37nUtX6AFJIdGYxypSZEtc6ds4bQSGkuyGIN6A8ryUTCPnd6rIMtnjITiok09vtn8LfD_0L9rsVnx4X3qpf_YduInyNzlBuPosrcG9-jd
+</div>
+<div class="w-12 h-12 glass-sheet rounded-xl flex items-center justify-center bg-white/20 group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors z-10">
+<span class="font-bold text-lg">٧</span>
+</div>
+<div class="flex-1 flex flex-col items-start text-right z-10">
+<h3 class="font-headline-ar text-headline-ar text-on-surface">الأعراف</h3>
+<span class="text-on-surface-variant/70 text-sm">٢٠٦ آية</span>
+</div>
+<div class="flex flex-col items-end gap-2 z-10">
+<span class="material-symbols-outlined text-primary/40 group-hover:text-primary transition-colors">chevron_left</span>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-glass-margin inset-x-glass-margin h-20 rounded-2xl z-50 glass-sheet flex flex-row-reverse justify-around items-center p-2 shadow-lg shadow-primary/5 border border-white/40">
+<button class="flex flex-col items-center justify-center bg-secondary-container/80 text-on-secondary-container rounded-xl px-5 py-2 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-0.5">المصحف</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">event_note</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-0.5">الخطط</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-0.5">الإحصائيات</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/80 px-4 py-1 hover:bg-white/20 rounded-xl active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-ar-sm text-label-ar-sm mt-0.5">الإعدادات</span>
+</button>
+</nav>
+<script>
+        function switchTab(type) {
+            const surahBtn = document.getElementById('tab-surah');
+            const juzBtn = document.getElementById('tab-juz');
+            
+            if(type === 'surah') {
+                surahBtn.classList.add('bg-secondary-container/80', 'text-on-secondary-container');
+                surahBtn.classList.remove('text-on-surface-variant', 'hover:bg-white/10');
+                
+                juzBtn.classList.remove('bg-secondary-container/80', 'text-on-secondary-container');
+                juzBtn.classList.add('text-on-surface-variant', 'hover:bg-white/10');
+                
+                renderSurahs();
+            } else {
+                juzBtn.classList.add('bg-secondary-container/80', 'text-on-secondary-container');
+                juzBtn.classList.remove('text-on-surface-variant', 'hover:bg-white/10');
+                
+                surahBtn.classList.remove('bg-secondary-container/80', 'text-on-secondary-container');
+                surahBtn.classList.add('text-on-surface-variant', 'hover:bg-white/10');
+                
+                renderJuzs();
+            }
+        }
+
+        function renderSurahs() {
+            console.log("Switching to Surahs view...");
+        }
+
+        function renderJuzs() {
+            const list = document.getElementById('surah-list');
+            list.style.opacity = '0.5';
+            setTimeout(() => {
+                list.style.opacity = '1';
+            }, 200);
+        }
+    </script>
+</body></html>
