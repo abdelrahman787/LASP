@@ -55,32 +55,28 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final br = BorderRadius.circular(radius);
+    final fillColor = fill ??
+        (dark ? Colors.white.withValues(alpha: 0.06) : AppTokens.glassFill);
+    final borderColor =
+        dark ? Colors.white.withValues(alpha: 0.10) : AppTokens.glassBorder;
     return ClipRRect(
       borderRadius: br,
       child: BackdropFilter(
         filter: ImageFilter.blur(
             sigmaX: AppTokens.glassBlur / 2, sigmaY: AppTokens.glassBlur / 2),
+        // Paint the glass fill + hairline border via the Material itself (not a
+        // DecoratedBox) so a child ListTile/SwitchListTile/ExpansionTile paints
+        // its own background + ink ripples correctly on top of it.
         child: Material(
-          color: Colors.transparent,
+          color: fillColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: br,
+            side: BorderSide(color: borderColor, width: 1),
+          ),
           child: InkWell(
             onTap: onTap,
-            borderRadius: br,
-            child: Container(
-              padding: padding,
-              decoration: BoxDecoration(
-                color: dark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : AppTokens.glassFill,
-                borderRadius: br,
-                border: Border.all(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.10)
-                      : AppTokens.glassBorder,
-                  width: 1,
-                ),
-              ),
-              child: child,
-            ),
+            customBorder: RoundedRectangleBorder(borderRadius: br),
+            child: Padding(padding: padding, child: child),
           ),
         ),
       ),
