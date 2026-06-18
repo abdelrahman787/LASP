@@ -176,12 +176,32 @@ class RecitationController {
     }
   }
 
+  /// Pause an active session. The screen must also stop the mic/ASR stream
+  /// while paused (the controller additionally ignores any late ASR results).
+  void pause() {
+    if (_status == RecitationStatus.listening ||
+        _status == RecitationStatus.matching) {
+      _status = RecitationStatus.paused;
+    }
+  }
+
+  /// Resume a paused session. Re-arms the silence clock so resuming doesn't
+  /// immediately trip a silence-forget.
+  void resume() {
+    if (_status == RecitationStatus.paused) {
+      _status = RecitationStatus.listening;
+      _lastProgressAt = now();
+      _silenceIndicatorVisible = false;
+    }
+  }
+
   // --- ASR ingestion --------------------------------------------------------
 
   /// Process one ASR result against the cursor (spec Phase 3, step 3).
   void submitAsr(AsrResult r) {
     if (_status == RecitationStatus.idle ||
-        _status == RecitationStatus.completed) {
+        _status == RecitationStatus.completed ||
+        _status == RecitationStatus.paused) {
       return;
     }
     _status = RecitationStatus.matching;

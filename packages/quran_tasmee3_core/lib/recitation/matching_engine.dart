@@ -111,6 +111,11 @@ class MatchResult {
 /// How far back (in accepted words) a context replay may reach.
 const int kReplayWindow = 6;
 
+/// How far ahead of the cursor an out-of-place token may match to be classified
+/// as an `order` error (vs `substitution`). Bounded so a common word recurring
+/// far later in a full-page scope isn't misread as a re-ordering.
+const int _orderLookAhead = 8;
+
 /// Pure entry point: process ONE recognized utterance against the cursor.
 ///
 /// [recognizedTokens] must already be normalized (caller runs the normalizer
@@ -196,9 +201,13 @@ MatchResult matchUtterance({
     }
 
     // --- Step 3: classify the stopping token ---
-    // Does it match a word *ahead* of the cursor within scope? → order error.
+    // Does it match a word *ahead* of the cursor, within a bounded window? →
+    // order error. The window prevents a common word that merely happens to
+    // recur far later on a full-page scope from being misclassified as `order`
+    // when it's really a `substitution`.
     var matchesAhead = false;
-    for (var j = c + 1; j < scope.length; j++) {
+    final lookAheadLimit = (c + 1 + _orderLookAhead).clamp(0, scope.length);
+    for (var j = c + 1; j < lookAheadLimit; j++) {
       if (sameWord(token, scope[j].norm)) {
         matchesAhead = true;
         break;

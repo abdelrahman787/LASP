@@ -194,6 +194,40 @@ void main() {
       expect(r.error!.expectedIndex, 0);
     });
 
+    test('order look-ahead is bounded: a match far beyond the window is a '
+        'substitution, not an order error', () {
+      // Distinct filler words (no digits — those are stripped by the
+      // normalizer), with the spoken target only at index 20 (far ahead).
+      String filler(int i) => 'سن${String.fromCharCode(0x0628 + i)}';
+      final words = [
+        for (var i = 0; i < 20; i++) filler(i),
+        'نستعين', // index 20, beyond the 8-word window
+      ].map(normalizeForMatch).toList();
+      final scope = scopeFromWords(words);
+      final r = matchUtterance(
+        scope: scope,
+        cursor: 0,
+        recognizedTokens: recite('نستعين'),
+        confidence: 0.9,
+        mode: normal,
+        acceptedHistory: const [],
+      );
+      expect(r.error, isNotNull);
+      expect(r.error!.type, ErrorType.substitution,
+          reason: 'beyond the look-ahead window → substitution');
+
+      // A match INSIDE the window (index 5) is still an order error.
+      final r2 = matchUtterance(
+        scope: scope,
+        cursor: 0,
+        recognizedTokens: [normalizeForMatch(filler(5))],
+        confidence: 0.9,
+        mode: normal,
+        acceptedHistory: const [],
+      );
+      expect(r2.error!.type, ErrorType.order);
+    });
+
     test('context replay: leading accepted words absorbed, continuation '
         'accepted, no error', () {
       // scope: قال فمن ربكما يا موسى

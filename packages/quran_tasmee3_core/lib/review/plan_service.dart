@@ -115,6 +115,7 @@ class PlanService {
     String? planId,
     String? name,
   }) async {
+    final nowMs = now(); // one timestamp for the whole operation
     final s = await settings.get();
     final refs = resolver.resolve(type, start, end);
 
@@ -126,7 +127,7 @@ class PlanService {
     }
 
     // Weakness lookup from existing history.
-    final agg = aggregate(await weakItems.getAll(), nowMs: now());
+    final agg = aggregate(await weakItems.getAll(), nowMs: nowMs);
     final weaknessByKey = {for (final a in agg) '${a.surah}:${a.ayah}': a.weaknessScore};
 
     // Order by weakness desc, then natural mushaf order.
@@ -139,7 +140,6 @@ class PlanService {
         return bs != 0 ? bs : a.ayah.compareTo(b.ayah);
       });
 
-    final nowMs = now();
     final items = [
       for (final r in ordered)
         PlanItem(

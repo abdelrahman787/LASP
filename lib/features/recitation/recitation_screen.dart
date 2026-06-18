@@ -330,6 +330,21 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     if (asr is FakeAsrService) asr.emit(const AsrResult('', 0.0));
   }
 
+  bool get _isPaused => _controller.status == RecitationStatus.paused;
+
+  Future<void> _togglePause() async {
+    if (_isPaused) {
+      _controller.resume();
+      await _asr.resume();
+      dlog('session resumed');
+    } else {
+      _controller.pause();
+      await _asr.pause(); // mic actually stops capturing while paused
+      dlog('session paused');
+    }
+    _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -338,6 +353,13 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
         title: Text(widget.title ??
             'تسميع · ${_surahLabel.isNotEmpty ? _surahLabel : 'صفحة ${widget.pageNumber}'}'),
         actions: [
+          IconButton(
+            tooltip: _isPaused ? 'استئناف' : 'إيقاف مؤقت',
+            icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+            onPressed: (_finishing || _controller.status == RecitationStatus.completed)
+                ? null
+                : _togglePause,
+          ),
           TextButton(
             onPressed: _finishing ? null : _finish,
             child: const Text('إنهاء'),

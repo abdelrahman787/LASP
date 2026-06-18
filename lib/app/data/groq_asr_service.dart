@@ -62,6 +62,7 @@ class GroqAsrService implements AsrService {
   static const int _bytesPerSecond = _sampleRate * _channels * _bytesPerSample;
 
   bool _running = false;
+  bool _paused = false;
   bool _inFlight = false;
   void Function(AsrResult)? _onResult;
   StreamSubscription<Uint8List>? _sub;
@@ -134,7 +135,7 @@ class GroqAsrService implements AsrService {
   }
 
   Future<void> _emitWindow() async {
-    if (!_running || _inFlight) return;
+    if (!_running || _paused || _inFlight) return;
     if (_buffer.length < _minEmitBytes) {
       dlog('window too short (${_buffer.length}B) — waiting');
       return;
@@ -172,11 +173,15 @@ class GroqAsrService implements AsrService {
       'file': MultipartFile.fromBytes(wav, filename: 'audio.wav'),
     });
 
-    final resp = await _dio.post<dynamic>(
-      '$workerUrl/asr/transcribe',
-      data: form,
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
+    // Hard timeout so a dead/hanging connection can't stall the session — on
+    // timeout it's treated like any other ASR failure (empty result).
+    final resp = await _dio
+        .post<dynamic>(
+          '$workerUrl/asr/transcribe',
+          data: form,
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        )
+        .timeout(const Duration(seconds: 15));
 
     final data = resp.data;
     if (resp.statusCode == 200 && data is Map) {
@@ -240,8 +245,33 @@ class GroqAsrService implements AsrService {
   }
 
   @override
+  Future<void> pause() async {
+    if (!_running || _paused) return;
+    _paused = true;
+    _emitTimer?.cancel();
+    _emitTimer = null;
+    _buffer.clear(); // drop buffered audio so resume starts clean
+    try {
+      if (await _recorder.isRecording()) await _recorder.pause();
+    } catch (_) {}
+    dlog('mic paused');
+  }
+
+  @override
+  Future<void> resume() async {
+    if (!_running || !_paused) return;
+    _paused = false;
+    try {
+      await _recorder.resume();
+    } catch (_) {}
+    _emitTimer = Timer.periodic(emitInterval, (_) => _emitWindow());
+    dlog('mic resumed');
+  }
+
+  @override
   Future<void> stop() async {
     _running = false;
+    _paused = false;
     _emitTimer?.cancel();
     _emitTimer = null;
     await _sub?.cancel();

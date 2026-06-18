@@ -13,6 +13,11 @@ import 'models.dart';
 abstract class WeakItemRepository {
   Future<List<WeakItem>> getAll();
   Future<WeakItem?> get(String wordId);
+
+  /// Batched read for many ids at once (one or few round-trips), returning only
+  /// the ids that exist. Used by `ingestSession` to avoid N individual gets.
+  Future<Map<String, WeakItem>> getMany(Iterable<String> wordIds);
+
   Future<void> upsert(WeakItem item);
   Future<void> upsertAll(Iterable<WeakItem> items);
   Future<void> delete(String wordId);
@@ -44,6 +49,12 @@ class InMemoryWeakItemRepository implements WeakItemRepository {
 
   @override
   Future<WeakItem?> get(String wordId) async => _items[wordId];
+
+  @override
+  Future<Map<String, WeakItem>> getMany(Iterable<String> wordIds) async => {
+        for (final id in wordIds)
+          if (_items[id] != null) id: _items[id]!,
+      };
 
   @override
   Future<void> upsert(WeakItem item) async {

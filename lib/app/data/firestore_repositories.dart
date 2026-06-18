@@ -56,6 +56,24 @@ class FirestoreWeakItemRepository implements WeakItemRepository {
   }
 
   @override
+  Future<Map<String, WeakItem>> getMany(Iterable<String> wordIds) async {
+    final ids = wordIds.toSet().toList();
+    final out = <String, WeakItem>{};
+    // Firestore allows up to 30 values in a `whereIn` filter; chunk the ids.
+    const chunk = 30;
+    for (var i = 0; i < ids.length; i += chunk) {
+      final slice = ids.sublist(i, (i + chunk).clamp(0, ids.length));
+      if (slice.isEmpty) continue;
+      final snap =
+          await _col.where(FieldPath.documentId, whereIn: slice).get();
+      for (final d in snap.docs) {
+        out[d.id] = _fromDoc(d.id, d.data());
+      }
+    }
+    return out;
+  }
+
+  @override
   Future<void> upsert(WeakItem item) =>
       _col.doc(item.wordId).set(_toMap(item));
 

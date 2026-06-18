@@ -65,6 +65,41 @@ void main() {
     );
   }
 
+  group('pause / resume', () {
+    test('pause from listening → paused; ASR ignored while paused', () {
+      c = build();
+      c.start();
+      expect(c.status, RecitationStatus.listening);
+      c.pause();
+      expect(c.status, RecitationStatus.paused);
+      // A result arriving while paused is ignored (no reveal, no advance).
+      c.submitAsr(const AsrResult('بسم', 0.95));
+      expect(c.cursor, 0);
+      expect(revealed, isEmpty);
+    });
+
+    test('resume → listening and silence clock reset (no immediate forget)', () {
+      c = build();
+      c.start();
+      c.pause();
+      // Time passes well beyond the 10s forget window while paused.
+      clock.advance(20000);
+      c.resume();
+      expect(c.status, RecitationStatus.listening);
+      // Right after resume, a silence check must NOT fire a forget.
+      c.checkSilence();
+      expect(logger.errors, isEmpty);
+      expect(c.silenceIndicatorVisible, isFalse);
+    });
+
+    test('resume only works from paused; start still listening', () {
+      c = build();
+      c.start();
+      c.resume(); // no-op from listening
+      expect(c.status, RecitationStatus.listening);
+    });
+  });
+
   group('multi-word acceptance', () {
     test('one breath reveals the whole ayah in sequence, advances cursor', () {
       c = build();

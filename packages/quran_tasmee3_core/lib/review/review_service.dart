@@ -130,13 +130,25 @@ class ReviewService {
     required List<RecordedError> errors,
     required int nowMs,
   }) async {
-    // Aggregate this session's counting errors per word.
+    // Aggregate this session's counting errors per (validated) word.
     final addErrors = <String, int>{};
     final addForgets = <String, int>{};
     final lastAt = <String, int>{};
+    final parsedById = <String, ParsedWordId>{};
 
     for (final e in errors) {
       if (e.severity != ErrorSeverity.confirmed) continue; // ignore soft/flag
+      final parsed = parseWordId(e.wordId);
+      if (parsed == null) {
+        // Malformed id — skip rather than writing a garbage 0:0:0 weak item.
+        assert(() {
+          // ignore: avoid_print
+          print('ingestSession: skipping malformed wordId "${e.wordId}"');
+          return true;
+        }());
+        continue;
+      }
+      parsedById[e.wordId] = parsed;
       addErrors[e.wordId] = (addErrors[e.wordId] ?? 0) + 1;
       if (e.errorType == ErrorType.forget) {
         addForgets[e.wordId] = (addForgets[e.wordId] ?? 0) + 1;
@@ -145,29 +157,30 @@ class ReviewService {
       if (at > (lastAt[e.wordId] ?? 0)) lastAt[e.wordId] = at;
     }
 
-    for (final wordId in addErrors.keys) {
-      final existing = await weakItems.get(wordId);
-      final parts = wordId.split(':');
-      final surah = int.tryParse(parts.elementAt(0)) ?? 0;
-      final ayah = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-      final wordIndex = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
-
-      final newErrorCount = (existing?.errorCount ?? 0) + addErrors[wordId]!;
-      final newForget = (existing?.forgetCount ?? 0) + (addForgets[wordId] ?? 0);
-      final newLast = lastAt[wordId] ?? nowMs;
-
-      await weakItems.upsert(WeakItem(
-        wordId: wordId,
-        surah: existing?.surah ?? surah,
-        ayah: existing?.ayah ?? ayah,
-        wordIndex: existing?.wordIndex ?? wordIndex,
-        errorCount: newErrorCount,
-        lastErrorAt: newLast > (existing?.lastErrorAt ?? 0)
-            ? newLast
-            : existing!.lastErrorAt,
-        masteryScore: _clamp01(1.0 - newErrorCount / 10.0),
-        forgetCount: newForget,
-      ));
+    if (addErrors.isNotEmpty) {
+      // One batched read for all existing items, then one batched write.
+      final existing = await weakItems.getMany(addErrors.keys);
+      final updates = <WeakItem>[];
+      for (final wordId in addErrors.keys) {
+        final p = parsedById[wordId]!;
+        final ex = existing[wordId];
+        final newErrorCount = (ex?.errorCount ?? 0) + addErrors[wordId]!;
+        final newForget = (ex?.forgetCount ?? 0) + (addForgets[wordId] ?? 0);
+        final candidateLast = lastAt[wordId] ?? nowMs;
+        final newLast =
+            candidateLast > (ex?.lastErrorAt ?? 0) ? candidateLast : ex!.lastErrorAt;
+        updates.add(WeakItem(
+          wordId: wordId,
+          surah: ex?.surah ?? p.surah,
+          ayah: ex?.ayah ?? p.ayah,
+          wordIndex: ex?.wordIndex ?? p.wordIndex,
+          errorCount: newErrorCount,
+          lastErrorAt: newLast,
+          masteryScore: _clamp01(1.0 - newErrorCount / 10.0),
+          forgetCount: newForget,
+        ));
+      }
+      await weakItems.upsertAll(updates);
     }
 
     final all = await weakItems.getAll()
@@ -178,4 +191,25 @@ class ReviewService {
       });
     return all;
   }
+}
+
+/// A validated `"<surah>:<ayah>:<wordIndex>"` id.
+class ParsedWordId {
+  final int surah;
+  final int ayah;
+  final int wordIndex;
+  const ParsedWordId(this.surah, this.ayah, this.wordIndex);
+}
+
+/// Parse + validate a wordId. Returns null on wrong shape or out-of-range
+/// components (surah 1–114, ayah ≥ 1, wordIndex ≥ 0).
+ParsedWordId? parseWordId(String id) {
+  final parts = id.split(':');
+  if (parts.length != 3) return null;
+  final s = int.tryParse(parts[0]);
+  final a = int.tryParse(parts[1]);
+  final w = int.tryParse(parts[2]);
+  if (s == null || a == null || w == null) return null;
+  if (s < 1 || s > 114 || a < 1 || w < 0) return null;
+  return ParsedWordId(s, a, w);
 }

@@ -32,7 +32,13 @@ abstract class AsrService {
   /// [onResult]. Implementations handle permissions, chunking, retries.
   Future<void> start(void Function(AsrResult) onResult);
 
-  /// Stop capturing.
+  /// Pause capturing (mic actually stops) without tearing down the session.
+  Future<void> pause() async {}
+
+  /// Resume after [pause].
+  Future<void> resume() async {}
+
+  /// Stop capturing (ends the session).
   Future<void> stop();
 }
 
@@ -49,6 +55,12 @@ class FakeAsrService implements AsrService {
   Future<void> start(void Function(AsrResult) onResult) async {
     _sink = onResult;
   }
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> resume() async {}
 
   @override
   Future<void> stop() async {
