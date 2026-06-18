@@ -361,11 +361,6 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                Text(
-                  'المؤشر عند الكلمة ${_controller.cursor + 1} من ${_scope.length}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,

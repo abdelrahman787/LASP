@@ -24,7 +24,9 @@ class AppBackground extends StatelessWidget {
             : const LinearGradient(
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
-                colors: [Color(0xFFE9EEFF), Color(0xFFFAF9FF), Color(0xFFF1ECFF)],
+                // More saturated periwinkle/navy tints so the frosted blur has
+                // something to diffuse (a flat fill makes blur invisible).
+                colors: [Color(0xFFC7D4FF), Color(0xFFF1ECFF), Color(0xFFDCE6FF)],
                 stops: [0.0, 0.5, 1.0],
               ),
       ),
@@ -59,7 +61,20 @@ class GlassCard extends StatelessWidget {
         (dark ? Colors.white.withValues(alpha: 0.06) : AppTokens.glassFill);
     final borderColor =
         dark ? Colors.white.withValues(alpha: 0.10) : AppTokens.glassBorder;
-    return ClipRRect(
+    return DecoratedBox(
+      // Soft depth so the card separates from the gradient even where the
+      // blur is subtle.
+      decoration: BoxDecoration(
+        borderRadius: br,
+        boxShadow: [
+          BoxShadow(
+            color: AppTokens.primary.withValues(alpha: dark ? 0.0 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
       borderRadius: br,
       child: BackdropFilter(
         filter: ImageFilter.blur(
@@ -79,6 +94,7 @@ class GlassCard extends StatelessWidget {
             child: Padding(padding: padding, child: child),
           ),
         ),
+      ),
       ),
     );
   }

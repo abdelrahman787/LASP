@@ -16,7 +16,6 @@ class ReportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pct = (report.score * 100).round();
     return Scaffold(
       appBar: AppBar(
         title: const Text('تقرير الجلسة'),
@@ -44,26 +43,30 @@ class ReportScreen extends StatelessWidget {
           ],
           GlassCard(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text('التقييم', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text('$pct%',
-                    style: theme.textTheme.displaySmall
-                        ?.copyWith(color: theme.colorScheme.primary)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    StatusChip('مؤكدة: ${report.confirmedErrors}',
-                        color: theme.colorScheme.error),
-                    StatusChip('مبدئية: ${report.softErrors}',
-                        color: theme.colorScheme.tertiary),
-                    StatusChip('كلمات: ${report.totalWords}',
-                        color: theme.colorScheme.secondary),
-                  ],
+                _DonutScore(value: report.score),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('التقييم', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          StatusChip('مؤكدة: ${report.confirmedErrors}',
+                              color: theme.colorScheme.error),
+                          StatusChip('مبدئية: ${report.softErrors}',
+                              color: theme.colorScheme.tertiary),
+                          StatusChip('كلمات: ${report.totalWords}',
+                              color: theme.colorScheme.secondary),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -97,6 +100,42 @@ class ReportScreen extends StatelessWidget {
     if (acc >= 0.9) return theme.colorScheme.secondary;
     if (acc >= 0.6) return theme.colorScheme.tertiary;
     return theme.colorScheme.error;
+  }
+}
+
+/// Radial donut score gauge with the percentage centered inside (per mockup).
+class _DonutScore extends StatelessWidget {
+  final double value; // 0..1
+  const _DonutScore({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pct = (value.clamp(0.0, 1.0) * 100).round();
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 96,
+            height: 96,
+            child: CircularProgressIndicator(
+              value: value.clamp(0.0, 1.0),
+              strokeWidth: 10,
+              strokeCap: StrokeCap.round,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(theme.colorScheme.secondary),
+            ),
+          ),
+          Text('$pct%',
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(color: theme.colorScheme.primary)),
+        ],
+      ),
+    );
   }
 }
 

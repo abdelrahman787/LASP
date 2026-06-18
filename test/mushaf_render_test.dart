@@ -81,4 +81,42 @@ void main() {
     expect(rect!.width, greaterThan(0));
     expect(rect.height, greaterThan(0));
   });
+
+  testWidgets('a dense line in a narrow width does not overflow', (tester) async {
+    // Many words on one line → the old spaceBetween + height-derived font size
+    // overflowed horizontally. The per-line measure-and-shrink must prevent it.
+    final glyphs = [
+      for (var i = 0; i < 14; i++)
+        PageGlyph(
+          positionInPage: i,
+          lineNumber: 1,
+          type: 'word',
+          text: 'كلمةٌطويلة$i',
+          isCodeV2: false,
+          wordId: '2:1:${i + 1}',
+          surah: 2,
+          ayah: 1,
+        ),
+    ];
+    final c = MushafPageController()
+      ..showAllWords(glyphs.map((g) => g.positionInPage));
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 320,
+          height: 640,
+          child: MushafPageWidget(
+            pageNumber: 2,
+            glyphs: glyphs,
+            controller: c,
+            showTopBar: false,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull); // no RenderFlex overflow
+  });
 }

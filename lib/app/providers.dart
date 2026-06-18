@@ -168,8 +168,16 @@ class DashboardData {
   final List<WeakAyah> weakAyat;
   final int reviewedToday; // history entries reviewed since local midnight
   final int streakDays; // consecutive days (ending today) with ≥1 review
+  final double? lastScore; // most recent review score (0..1), or null
+  final int totalItems; // items in the auto plan
+  final int masteredItems; // mastered items in the auto plan
   const DashboardData(this.autoPlan, this.dueToday, this.weakAyat,
-      this.reviewedToday, this.streakDays);
+      this.reviewedToday, this.streakDays, this.lastScore,
+      this.totalItems, this.masteredItems);
+
+  /// Overall memorization progress = mastered / total plan items.
+  double get overallProgress =>
+      totalItems <= 0 ? 0 : (masteredItems / totalItems).clamp(0.0, 1.0);
 
   int get dailyTarget => autoPlan.dailyTarget;
   double get dailyProgress =>
@@ -208,7 +216,18 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
       history.where((r) => r.reviewedAt >= todayStart).length;
   final streak = _computeStreak(history.map((r) => r.reviewedAt), now);
 
-  return DashboardData(plan, due, ayat, reviewedToday, streak);
+  double? lastScore;
+  if (history.isNotEmpty) {
+    final sorted = [...history]
+      ..sort((a, b) => b.reviewedAt.compareTo(a.reviewedAt));
+    lastScore = sorted.first.score;
+  }
+  final mastered = plan.items
+      .where((i) => i.status == PlanItemStatus.mastered)
+      .length;
+
+  return DashboardData(plan, due, ayat, reviewedToday, streak, lastScore,
+      plan.items.length, mastered);
 });
 
 /// All saved plans (auto + custom).

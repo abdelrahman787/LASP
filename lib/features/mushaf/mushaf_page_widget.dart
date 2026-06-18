@@ -111,10 +111,24 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
       textDirection: TextDirection.rtl,
       child: LayoutBuilder(
         builder: (context, c) {
-          // Approximate per-line font size from the line's height.
-          final fs = (c.maxHeight * 0.62).clamp(14.0, 44.0);
+          // Start from a height-derived size, then SHRINK it so the line's
+          // natural width never exceeds the available width — guarantees no
+          // horizontal RenderFlex overflow. spaceBetween then distributes the
+          // remaining space so the line still fills edge-to-edge.
+          var fs = (c.maxHeight * 0.6).clamp(10.0, 40.0);
+          // Reserve each glyph's 2px horizontal padding (+ cursor border slack).
+          final budget =
+              (c.maxWidth - glyphs.length * 2 - 8).clamp(1.0, c.maxWidth);
+          var natural = 0.0;
+          for (final g in glyphs) {
+            natural += _measureGlyph(g, fs, fontReady);
+          }
+          if (natural > budget && natural > 0) {
+            // Shrink to fit — no lower clamp, so an unusually dense line can
+            // never overflow (real lines stay at a comfortable size).
+            fs = (fs * budget / natural).clamp(1.0, c.maxHeight);
+          }
           return Row(
-            // Justify edge-to-edge: distribute free space between words.
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [for (final g in glyphs) _glyph(g, fs, fontReady)],
@@ -122,6 +136,21 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
         },
       ),
     );
+  }
+
+  /// Measure a glyph's natural width at [fontSize] (page font for code_v2).
+  double _measureGlyph(PageGlyph g, double fontSize, bool fontReady) {
+    final fam =
+        (g.isCodeV2 && fontReady) ? PageFontLoader.family(widget.pageNumber) : null;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: g.text,
+        style: TextStyle(fontFamily: fam, fontSize: fontSize, height: 1.0),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout();
+    return tp.width;
   }
 
   Widget _glyph(PageGlyph g, double fontSize, bool fontReady) {

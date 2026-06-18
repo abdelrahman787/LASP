@@ -9,7 +9,6 @@ import '../bookmarks/bookmarks_screen.dart';
 import '../plans/plans_screen.dart';
 import '../recitation/recitation_screen.dart';
 import '../review/start_review.dart';
-import '../settings/settings_screen.dart';
 
 /// Plans dashboard (Review Plans Phase 3): today's review, weak spots, streak.
 /// Functionally wired; visual design comes later.
@@ -42,18 +41,6 @@ class DashboardScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const BookmarksScreen())),
           ),
           IconButton(
-            tooltip: 'الخطط',
-            icon: const Icon(Icons.list_alt),
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PlansScreen())),
-          ),
-          IconButton(
-            tooltip: 'الإعدادات',
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen())),
-          ),
-          IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authServiceProvider).signOut(),
@@ -68,6 +55,10 @@ class DashboardScreen extends ConsumerWidget {
           data: (data) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              _continueCard(context, ref, theme, data),
+              const SizedBox(height: 12),
+              _evaluationCard(context, ref, theme, data),
+              const SizedBox(height: 12),
               _streakStrip(theme, data),
               const SizedBox(height: 12),
               _todaysReviewCard(context, ref, theme, data),
@@ -91,6 +82,97 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// "إكمال التسميع" — continue card with overall progress + resume button.
+  Widget _continueCard(
+      BuildContext context, WidgetRef ref, ThemeData theme, DashboardData data) {
+    final due = data.dueToday;
+    return GlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('إكمال التسميع', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text(
+            'تقدّمك العام: ${(data.overallProgress * 100).round()}%'
+            ' (${data.masteredItems}/${data.totalItems} متقَن)',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          LiquidProgress(value: data.overallProgress, height: 12),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.menu_book),
+              label: const Text('استمر في التسميع'),
+              onPressed: () {
+                if (due.isNotEmpty) {
+                  startReview(context, ref,
+                      planId: data.autoPlan.id, item: due.first);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('لا توجد عناصر مستحقة الآن — تصفّح المصحف')));
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Evaluation summary — last session score + encouraging nudge + report link.
+  Widget _evaluationCard(
+      BuildContext context, WidgetRef ref, ThemeData theme, DashboardData data) {
+    if (data.lastScore == null) {
+      return GlassCard(
+        child: Row(
+          children: [
+            Icon(Icons.insights, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Text('ابدأ أول جلسة تسميع لرؤية تقييمك هنا.',
+                    style: theme.textTheme.bodyMedium)),
+          ],
+        ),
+      );
+    }
+    final pct = (data.lastScore! * 100).round();
+    final good = pct >= 80;
+    return GlassCard(
+      child: Row(
+        children: [
+          Icon(good ? Icons.emoji_events : Icons.trending_up,
+              color: theme.colorScheme.secondary, size: 36),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('آخر تقييم: $pct%', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  good
+                      ? 'أداء ممتاز! واصل المراجعة للحفاظ على إتقانك.'
+                      : 'راجع أخطاءك في النقاط الضعيفة لترفع نتيجتك.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const PlansScreen())),
+            child: const Text('التفاصيل'),
+          ),
+        ],
       ),
     );
   }

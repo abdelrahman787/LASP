@@ -30,9 +30,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('قرآن تسميع'), findsOneWidget);
-    expect(find.text('ابدأ المراجعة'), findsOneWidget);
-    expect(find.textContaining('لا توجد أخطاء'), findsOneWidget);
+    expect(find.text('قرآن تسميع'), findsOneWidget); // dashboard app bar
+    expect(find.text('إكمال التسميع'), findsOneWidget); // top continue card
+    // Bottom-nav shell is present.
+    expect(find.text('المصحف'), findsWidgets);
   });
 
   testWidgets('shows login screen when signed out', (tester) async {
