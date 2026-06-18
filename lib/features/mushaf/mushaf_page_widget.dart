@@ -33,6 +33,10 @@ class MushafPageWidget extends StatefulWidget {
   final VoidCallback? onHome;
   final VoidCallback? onBookmark;
 
+  /// When false, the widget's own top bar is omitted (the host screen, e.g. the
+  /// recitation session, already provides an AppBar — avoids a duplicate).
+  final bool showTopBar;
+
   const MushafPageWidget({
     super.key,
     required this.pageNumber,
@@ -44,6 +48,7 @@ class MushafPageWidget extends StatefulWidget {
     this.hizb,
     this.onHome,
     this.onBookmark,
+    this.showTopBar = true,
   });
 
   @override
@@ -64,7 +69,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
     final lineCount = _maxLine();
     return Column(
       children: [
-        _topBar(context),
+        if (widget.showTopBar) _topBar(context),
         Expanded(
           child: Container(
             color: _kCream,

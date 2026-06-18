@@ -326,7 +326,8 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title ?? 'تسميع — صفحة ${widget.pageNumber}'),
+        title: Text(widget.title ??
+            'تسميع · ${_surahLabel.isNotEmpty ? _surahLabel : 'صفحة ${widget.pageNumber}'}'),
         actions: [
           TextButton(
             onPressed: _finishing ? null : _finish,
@@ -351,7 +352,8 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               currentPosition: _cursorPosition,
               surahName: _surahLabel,
               juz: _juz,
-              onHome: () => Navigator.of(context).maybePop(),
+              // The Scaffold AppBar is the single top bar — avoid a duplicate.
+              showTopBar: false,
             ),
           ),
           const Divider(height: 1),

@@ -17,7 +17,6 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
-  google_fonts: ^6.2.1            # IBM Plex Sans Arabic / Noto Naskh Arabic
   quran_tasmee3_core:
     path: packages/quran_tasmee3_core
 
@@ -44,3 +43,17 @@ flutter:
     # back to FakeQuranRepository if these aren't present.
     - assets/quran/
     - assets/quran/fonts/
+  fonts:
+    # Bundled locally (offline-first) — no runtime font fetch.
+    - family: IBM Plex Sans Arabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Light.ttf
+          weight: 300
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700

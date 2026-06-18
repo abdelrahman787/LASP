@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Design tokens for "Liquid Glass Arabic Devotional" (design/DESIGN.md).
 /// Exact hex values transcribed from the Stitch export; component recipes
@@ -112,10 +111,14 @@ class AppTheme {
         onPrimary: const Color(0xFF002B66),
       );
 
+  /// Bundled font family (declared in pubspec) — offline-first, no runtime fetch.
+  static const String fontFamily = 'IBM Plex Sans Arabic';
+
   static TextTheme _text(ColorScheme cs) {
     final base = ThemeData(brightness: cs.brightness).textTheme;
     // IBM Plex Sans Arabic for all UI; generous line heights (DESIGN.md).
-    return GoogleFonts.ibmPlexSansArabicTextTheme(base).apply(
+    return base.apply(
+      fontFamily: fontFamily,
       bodyColor: cs.onSurface,
       displayColor: cs.onSurface,
     );
@@ -126,6 +129,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: cs,
+      fontFamily: fontFamily,
       textTheme: text,
       // The gradient background is painted by AppBackground; keep scaffolds
       // transparent so the glass reads against it.
