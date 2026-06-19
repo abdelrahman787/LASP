@@ -29,6 +29,7 @@ dependencies:
   permission_handler: ^11.3.1      # SWAP 1: real ASR (mic permission)
   sqflite: ^2.3.3                  # SWAP 3: bundled Quran SQLite
   path_provider: ^2.1.4            # SWAP 3: copy bundled DB to a writable path
+  sherpa_onnx: ^1.10.30            # On-device Whisper ASR + Silero VAD
   # flutter_local_notifications: ^17.2.3  # Review Plans Phase 6 reminders
 
 dev_dependencies:
@@ -43,6 +44,9 @@ flutter:
     # back to FakeQuranRepository if these aren't present.
     - assets/quran/
     - assets/quran/fonts/
+    # On-device ASR model (built locally by tools/asr/export_onnx.py; gitignored
+    # except .gitkeep — the app falls back to GroqAsrService if absent).
+    - assets/models/tarteel/
   fonts:
     # Bundled locally (offline-first) — no runtime font fetch.
     - family: IBM Plex Sans Arabic

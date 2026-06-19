@@ -14,6 +14,8 @@ import 'data/auth_service.dart';
 import 'data/fake_data.dart';
 import 'data/firestore_repositories.dart';
 import 'data/groq_asr_service.dart';
+import 'data/tarteel_asr_service.dart';
+import 'env.dart';
 import 'data/quran_repository.dart';
 
 // =============================================================================
@@ -48,19 +50,25 @@ final uidProvider = Provider<String?>((ref) {
   return ref.watch(authStateProvider).valueOrNull?.uid;
 });
 
-// --- External dependency #1: ASR (Cloudflare Worker + Groq) ------------------
+// --- External dependency #1: ASR --------------------------------------------
 
-/// Deployed Cloudflare Worker (Groq ASR proxy). Used by [GroqAsrService].
+/// Deployed Cloudflare Worker (Groq ASR proxy) — fallback used by GroqAsrService.
 const String kWorkerUrl =
     'https://quran-tasmee3-backend.abdelrahman-khamis.workers.dev';
 
-/// SWAP POINT 1 — REAL [GroqAsrService] (mic + Worker upload) is now active.
-/// The Firebase ID token (SWAP POINT 2) is wired via `idTokenProvider` below.
-/// Tests override `asrServiceProvider` with a fake, so this flag only affects
-/// the running app.
+/// Whether the cloud Worker path is enabled when on-device ASR is off.
 const bool kUseRealAsr = true;
 
+/// ASR backend selection:
+///   1. kUseOnDeviceAsr  → TarteelOnDeviceAsrService (Sherpa-ONNX Whisper, offline)
+///   2. else kUseRealAsr → GroqAsrService (Cloudflare Worker)   [debug fallback]
+///   3. else             → FakeAsrService (tests / no mic)
+/// Tests override this provider with a fake, so the flags only affect the app.
 final asrServiceProvider = Provider<AsrService>((ref) {
+  if (kUseOnDeviceAsr) {
+    return TarteelOnDeviceAsrService();
+  }
+  // --- Cloud fallback (kept for debugging; flip kUseOnDeviceAsr=false) ---
   if (kUseRealAsr) {
     final mode = ref.watch(settingsProvider).valueOrNull?.defaultMode.name ??
         'normal';
@@ -68,7 +76,7 @@ final asrServiceProvider = Provider<AsrService>((ref) {
     return GroqAsrService(
       workerUrl: kWorkerUrl,
       mode: mode,
-      idTokenProvider: auth.idToken, // SWAP POINT 2 complete
+      idTokenProvider: auth.idToken,
     );
   }
   return FakeAsrService();

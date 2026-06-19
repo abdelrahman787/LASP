@@ -29,3 +29,9 @@ assets/quran/*.sqlite-shm
 assets/quran/*.sqlite-wal
 assets/quran/fonts/*
 !assets/quran/fonts/.gitkeep
+
+# On-device ASR model (built locally via tools/asr/export_onnx.py)
+assets/models/tarteel/*
+!assets/models/tarteel/.gitkeep
+tools/asr/_work/
+tools/asr/__pycache__/
