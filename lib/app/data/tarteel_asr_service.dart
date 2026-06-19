@@ -151,7 +151,8 @@ class TarteelOnDeviceAsrService implements AsrService {
         cancelOnError: false,
       );
       dlog('tarteel mic start — pcm16 ${_sampleRate}Hz mono, '
-          'recognizerThreads=$_recognizerThreads (bg isolate)');
+          'recognizerThreads=$_recognizerThreads provider=$_kAsrProvider '
+          'decoding=greedy lang=ar (bg isolate)');
     } catch (e) {
       dlog('mic start failed: $e');
       _running = false;
@@ -215,6 +216,12 @@ class _AsrInit {
 
 /// Runs in its own isolate: owns the Silero VAD + Whisper recognizer, consumes
 /// PCM chunks, emits transcription results. Never touches the UI thread.
+///
+/// Provider for #2 (NNAPI) test: flip to 'nnapi' to route encoder/decoder
+/// inference to the device GPU/NPU/DSP (may partially fall back to CPU for
+/// unsupported ops). Keep 'cpu' for a baseline.
+const String _kAsrProvider = 'cpu'; // try 'nnapi' on Android for the NNAPI test
+
 void _workerMain(_AsrInit init) {
   const sampleRate = 16000;
   final port = ReceivePort();
@@ -226,15 +233,20 @@ void _workerMain(_AsrInit init) {
     sherpa.initBindings();
     recognizer = sherpa.OfflineRecognizer(
       sherpa.OfflineRecognizerConfig(
+        // #3: greedy is faster than modified_beam_search (the engine tolerates
+        // a little ASR noise). It's already the default; set explicitly to lock.
+        decodingMethod: 'greedy_search',
         model: sherpa.OfflineModelConfig(
           whisper: sherpa.OfflineWhisperModelConfig(
             encoder: init.encoder,
             decoder: init.decoder,
+            // #1: fixed language skips Whisper's auto language-detection pass.
             language: 'ar',
             task: 'transcribe',
           ),
           tokens: init.tokens,
           numThreads: init.numThreads, // multi-core decode
+          provider: _kAsrProvider, // #2: 'cpu' baseline / 'nnapi' to offload
           modelType: 'whisper',
           debug: false,
         ),
