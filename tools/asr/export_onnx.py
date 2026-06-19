@@ -118,6 +118,46 @@ def convert_hf_to_openai(hf_id: str, out_path: Path) -> None:
     print(f"  wrote {out_path}")
 
 
+def _shrink_decoder(work: Path, fp32: "Path|None", exporter_int8: "Path|None"):
+    """Try to shrink the decoder by ALSO quantizing the token-embedding (Gather),
+    not just MatMul. Runs onnxruntime's quant_pre_process first (also silences
+    the pre-processing warning). Self-validates the result loads in an
+    InferenceSession; on any failure or if not smaller, returns the exporter's
+    int8 file. Set SKIP_EMBED_QUANT=1 to skip and just use the exporter's int8.
+    """
+    import os
+
+    if os.environ.get("SKIP_EMBED_QUANT") == "1" or fp32 is None:
+        return exporter_int8 or fp32
+    try:
+        from onnxruntime.quantization import QuantType, quantize_dynamic
+        from onnxruntime.quantization.shape_inference import quant_pre_process
+        import onnxruntime as ort
+
+        pre = work / "decoder.pre.onnx"
+        out = work / "decoder.embq.int8.onnx"
+        print("Re-quantizing decoder (pre-process + embedding/Gather) ...")
+        quant_pre_process(str(fp32), str(pre), skip_symbolic_shape=False)
+        quantize_dynamic(
+            str(pre),
+            str(out),
+            weight_type=QuantType.QInt8,
+            op_types_to_quantize=["MatMul", "Gather"],
+        )
+        # Validate it actually loads (structure is sound).
+        ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+        new_mb = out.stat().st_size / 1e6
+        old_mb = (exporter_int8.stat().st_size / 1e6) if exporter_int8 else 1e9
+        print(f"  embedding-quantized decoder: {new_mb:.2f} MB "
+              f"(exporter int8: {old_mb:.2f} MB)")
+        if exporter_int8 is None or new_mb < old_mb:
+            return out
+        return exporter_int8
+    except Exception as e:  # noqa: BLE001
+        print(f"  embedding quantization skipped ({e}) — using exporter int8")
+        return exporter_int8 or fp32
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
@@ -163,22 +203,45 @@ def main():
     #    avoids the cwd path-duplication bug.
     run([sys.executable, str(script.resolve()), "--model", CKPT], cwd=str(WORK))
 
-    # 5) Collect + rename outputs (prefer int8) into OUT.
+    # 5) Collect outputs into OUT.
+    #    - encoder: the exporter's int8 (already small, ~28 MB).
+    #    - decoder: the exporter's int8 leaves the huge token-embedding (Gather)
+    #      in fp32 (vocab*d_model*4 ≈ 106 MB), so it stays ~124 MB. Try to also
+    #      quantize the embedding (quant_pre_process + Gather) from the fp32
+    #      decoder; self-validate it loads; fall back to the exporter's int8.
     def find(*suffixes):
         for p in WORK.rglob("*"):
             if any(p.name.endswith(s) for s in suffixes):
                 return p
         return None
 
+    print("\n=== intermediate files in _work ===")
+    for p in sorted(WORK.glob("*.onnx")):
+        print(f"  {p.name:34s} {p.stat().st_size / 1e6:7.2f} MB")
+
     enc = find("encoder.int8.onnx") or find("encoder.onnx")
-    dec = find("decoder.int8.onnx") or find("decoder.onnx")
+    if enc:
+        shutil.copy(enc, OUT / "encoder.onnx")
+        print(f"  -> {OUT / 'encoder.onnx'}  (from {enc.name})")
+
+    # Resolve fp32 vs int8 decoder explicitly (suffix match alone is ambiguous).
+    dec_int8 = find("decoder.int8.onnx")
+    dec_fp32 = None
+    for p in WORK.rglob("*decoder.onnx"):
+        if not p.name.endswith(".int8.onnx"):
+            dec_fp32 = p
+            break
+
+    chosen = _shrink_decoder(WORK, dec_fp32, dec_int8)
     tok = find("tokens.txt")
-    for src_f, dst in [(enc, "encoder.onnx"), (dec, "decoder.onnx"), (tok, "tokens.txt")]:
-        if src_f and src_f.exists():
-            shutil.copy(src_f, OUT / dst)
-            print(f"  -> {OUT / dst}  (from {src_f.name})")
-        else:
-            print(f"  !! missing output for {dst} — exporter step incomplete")
+    if chosen:
+        shutil.copy(chosen, OUT / "decoder.onnx")
+        print(f"  -> {OUT / 'decoder.onnx'}  (from {chosen.name})")
+    else:
+        print("  !! no decoder produced — exporter step incomplete")
+    if tok:
+        shutil.copy(tok, OUT / "tokens.txt")
+        print(f"  -> {OUT / 'tokens.txt'}  (from {tok.name})")
 
     # 6) Silero VAD v5 (for the on-device VAD gate).
     vad_out = OUT / "silero_vad.onnx"
