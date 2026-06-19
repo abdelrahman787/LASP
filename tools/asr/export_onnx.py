@@ -128,14 +128,33 @@ def main():
     print(f"Downloading {EXPORT_URL}")
     urllib.request.urlretrieve(EXPORT_URL, script)
 
-    # 2) Relax the argparse `choices=[...]` so a local .pt path is accepted.
+    # 2) Patch the downloaded exporter:
+    #    (a) relax the argparse `choices=[...]` so a local .pt path is accepted;
+    #    (b) force the legacy TorchScript ONNX exporter (`dynamo=False`) on both
+    #        torch.onnx.export() calls — torch>=2.x defaults to the dynamo/
+    #        torch.export path, which chokes on the decoder's data-dependent
+    #        positional_embedding[offset:offset+T] slice
+    #        (GuardOnDataDependentSymNode). The anchor `opset_version=opset_version,`
+    #        appears once inside each export() call's kwargs (a valid place to add
+    #        another kwarg, unlike right after the positional args).
     src = script.read_text(encoding="utf-8")
     patched = re.sub(r"choices=\[.*?\],", "", src, count=1, flags=re.DOTALL)
     if patched != src:
-        script.write_text(patched, encoding="utf-8")
         print("  patched export-onnx.py (removed --model choices restriction)")
     else:
         print("  NOTE: could not find choices=[...] to patch — check script version")
+
+    anchor = "opset_version=opset_version,"
+    n = patched.count(anchor)
+    if n > 0:
+        patched = patched.replace(anchor, f"{anchor}\n        dynamo=False,")
+        print(f"  patched export-onnx.py (forced dynamo=False on {n} export call(s))")
+    else:
+        print("  NOTE: could not find opset_version anchor — check torch.onnx.export "
+              "calls; you may need to add dynamo=False manually")
+
+    if patched != src:
+        script.write_text(patched, encoding="utf-8")
 
     # 3) Convert HF fine-tune → OpenAI checkpoint inside WORK.
     convert_hf_to_openai(HF_MODEL, WORK / CKPT)
