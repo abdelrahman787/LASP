@@ -78,7 +78,10 @@ class TarteelOnDeviceAsrService implements AsrService {
               break;
             case 'result':
               final text = (msg['text'] as String).trim();
-              dlog('tarteel result "$text" (${msg['dur']}s)');
+              // audio=segment length, decode=actual inference wall-time (the
+              // number that matters when A/B-ing providers/threads/maxSpeech).
+              dlog('tarteel result "$text" audio=${msg['dur']}s '
+                  'decode=${msg['ms']}ms');
               if (_running && !_paused) {
                 _onResult?.call(AsrResult(text, text.isEmpty ? 0 : 0.9));
               }
@@ -217,10 +220,20 @@ class _AsrInit {
 /// Runs in its own isolate: owns the Silero VAD + Whisper recognizer, consumes
 /// PCM chunks, emits transcription results. Never touches the UI thread.
 ///
-/// Provider for #2 (NNAPI) test: flip to 'nnapi' to route encoder/decoder
-/// inference to the device GPU/NPU/DSP (may partially fall back to CPU for
-/// unsupported ops). Keep 'cpu' for a baseline.
-const String _kAsrProvider = 'cpu'; // try 'nnapi' on Android for the NNAPI test
+/// A/B tuning knobs (rebuild to change):
+///  - _kAsrProvider: ONNX Runtime execution provider.
+///      'cpu'     — baseline.
+///      'nnapi'   — route to GPU/NPU/DSP (Android); may partially fall back to
+///                  CPU for unsupported ops (watch logcat).
+///      'xnnpack' — CPU-optimized int8 kernels; no NNAPI fallback risk.
+///  - _kMaxSpeechDuration: hard cap on a VAD segment (bounds worst-case decode
+///      latency, since Whisper decode time scales with audio/token length).
+///  - _kMinSilenceDuration: pause length needed to END a segment (higher avoids
+///      mid-word cuts on breathing pauses).
+const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
+const double _kMaxSpeechDuration = 7.0; // was 12.0
+const double _kMinSilenceDuration = 0.45;
+const double _kVadThreshold = 0.5;
 
 void _workerMain(_AsrInit init) {
   const sampleRate = 16000;
@@ -256,13 +269,13 @@ void _workerMain(_AsrInit init) {
       config: sherpa.VadModelConfig(
         sileroVad: sherpa.SileroVadModelConfig(
           model: init.vad,
-          threshold: 0.5,
+          threshold: _kVadThreshold,
           // Require a longer pause to END a segment so intra-phrase breaths
           // don't cut words mid-utterance ("وَلَا يَ").
-          minSilenceDuration: 0.45,
+          minSilenceDuration: _kMinSilenceDuration,
           minSpeechDuration: 0.25,
-          // Safety cap only — long ayah phrases shouldn't be force-cut at 5s.
-          maxSpeechDuration: 12.0,
+          // Hard cap on segment length → bounds worst-case decode latency.
+          maxSpeechDuration: _kMaxSpeechDuration,
         ),
         sampleRate: sampleRate,
         numThreads: 1,
@@ -289,20 +302,28 @@ void _workerMain(_AsrInit init) {
     while (!vad.isEmpty()) {
       final seg = vad.front();
       vad.pop();
+      var text = '';
+      // Wall-time of the full inference (encode+decode) for this segment. Note:
+      // the high-level recognizer.decode() runs encode+decode together, so the
+      // C-API here can't split them — this is total inference time, which is the
+      // metric that matters for the A/B comparison.
+      final sw = Stopwatch()..start();
       try {
         final s = recognizer.createStream();
         s.acceptWaveform(samples: seg.samples, sampleRate: sampleRate);
         recognizer.decode(s);
-        final text = recognizer.getResult(s).text;
+        text = recognizer.getResult(s).text;
         s.free();
-        init.toMain.send({
-          'type': 'result',
-          'text': text,
-          'dur': (seg.samples.length / sampleRate).toStringAsFixed(2),
-        });
-      } catch (e) {
-        init.toMain.send({'type': 'result', 'text': '', 'dur': '0'});
+      } catch (_) {
+        text = '';
       }
+      sw.stop();
+      init.toMain.send({
+        'type': 'result',
+        'text': text,
+        'dur': (seg.samples.length / sampleRate).toStringAsFixed(2),
+        'ms': sw.elapsedMilliseconds,
+      });
     }
   }
 
