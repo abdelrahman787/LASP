@@ -234,3 +234,10 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
 final plansListProvider = FutureProvider<List<ReviewPlan>>((ref) async {
   return ref.watch(planRepositoryProvider).getAll();
 });
+
+/// Review history (newest first) for the statistics screen.
+final reviewHistoryListProvider = FutureProvider<List<ReviewResult>>((ref) async {
+  final all = await ref.watch(reviewHistoryRepositoryProvider).getAll();
+  all.sort((a, b) => b.reviewedAt.compareTo(a.reviewedAt));
+  return all;
+});

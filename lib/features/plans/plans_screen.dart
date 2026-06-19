@@ -7,6 +7,7 @@ import 'package:quran_tasmee3_core/review/plan_service.dart';
 import '../../app/providers.dart';
 import '../../app/widgets/glass.dart';
 import '../review/start_review.dart';
+import '../shell/app_drawer.dart';
 
 /// Lists plans and supports custom-plan creation (Review Plans Phase 5).
 class PlansScreen extends ConsumerWidget {
@@ -14,50 +15,94 @@ class PlansScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final plans = ref.watch(plansListProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('الخطط')),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.add),
-        label: const Text('خطة مخصّصة'),
-        onPressed: () => _showCreateDialog(context, ref),
+    // C3: three plan types. مراجعة is built; حفظ/تسميع are scheduled features
+    // (their scheduling logic is a separate task) — shown as clear placeholders.
+    return DefaultTabController(
+      length: 3,
+      initialIndex: 1,
+      child: Scaffold(
+        drawer: const AppDrawer(),
+        appBar: AppBar(
+          title: const Text('الخطط'),
+          bottom: const TabBar(
+            tabs: [Tab(text: 'حفظ'), Tab(text: 'مراجعة'), Tab(text: 'تسميع')],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          icon: const Icon(Icons.add),
+          label: const Text('خطة مخصّصة'),
+          onPressed: () => _showCreateDialog(context, ref),
+        ),
+        body: TabBarView(
+          children: [
+            _comingSoon(context,
+                'خطط الحفظ', 'حدّد نطاقًا جديدًا لحفظه (سورة/جزء/صفحات) وهدفًا يوميًا.'),
+            _reviewList(context, ref),
+            _comingSoon(context, 'خطط التسميع',
+                'جلسات تسميع مجدولة لما حفظته سابقًا، باختيار نطاق وفترة تكرار.'),
+          ],
+        ),
       ),
-      body: plans.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('خطأ: $e')),
-        data: (list) => list.isEmpty
-            ? const Center(child: Text('لا توجد خطط بعد.'))
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                children: [
-                  for (final p in list)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: GlassCard(
-                        padding: EdgeInsets.zero,
-                        child: ListTile(
-                          title: Text(p.name),
-                          subtitle: Text(
-                              '${p.items.length} عنصر · الهدف اليومي ${p.dailyTarget}'),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () async {
-                              await ref
-                                  .read(planServiceProvider)
-                                  .deletePlan(p.id);
-                              ref.invalidate(plansListProvider);
-                            },
-                          ),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => PlanDetailScreen(planId: p.id)),
-                          ),
+    );
+  }
+
+  Widget _comingSoon(BuildContext context, String title, String desc) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.hourglass_empty, size: 64, color: theme.colorScheme.outline),
+            const SizedBox(height: 12),
+            Text(title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text('$desc\n(قريبًا)',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reviewList(BuildContext context, WidgetRef ref) {
+    final plans = ref.watch(plansListProvider);
+    return plans.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('خطأ: $e')),
+      data: (list) => list.isEmpty
+          ? const Center(child: Text('لا توجد خطط مراجعة بعد.'))
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              children: [
+                for (final p in list)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GlassCard(
+                      padding: EdgeInsets.zero,
+                      child: ListTile(
+                        title: Text(p.name),
+                        subtitle: Text(
+                            '${p.items.length} عنصر · الهدف اليومي ${p.dailyTarget}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () async {
+                            await ref.read(planServiceProvider).deletePlan(p.id);
+                            ref.invalidate(plansListProvider);
+                          },
+                        ),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => PlanDetailScreen(planId: p.id)),
                         ),
                       ),
                     ),
-                ],
-              ),
-      ),
+                  ),
+              ],
+            ),
     );
   }
 

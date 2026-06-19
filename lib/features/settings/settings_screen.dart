@@ -6,6 +6,7 @@ import 'package:quran_tasmee3_core/review/settings.dart';
 
 import '../../app/providers.dart';
 import '../../app/widgets/glass.dart';
+import '../shell/app_drawer.dart';
 
 /// Edits [UserSettings] — the scheduler/aggregation knobs (Review Plans Phase 5).
 class SettingsScreen extends ConsumerWidget {
@@ -15,6 +16,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(settingsProvider);
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(title: const Text('الإعدادات')),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

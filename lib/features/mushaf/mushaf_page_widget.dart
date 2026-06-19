@@ -37,6 +37,12 @@ class MushafPageWidget extends StatefulWidget {
   /// recitation session, already provides an AppBar — avoids a duplicate).
   final bool showTopBar;
 
+  /// surah id → Arabic name, for the surah-start banner (optional).
+  final Map<int, String>? surahNames;
+
+  /// If provided, a تسميع button is shown in the bottom bar (reader mode).
+  final VoidCallback? onTasmee;
+
   const MushafPageWidget({
     super.key,
     required this.pageNumber,
@@ -49,6 +55,8 @@ class MushafPageWidget extends StatefulWidget {
     this.onHome,
     this.onBookmark,
     this.showTopBar = true,
+    this.surahNames,
+    this.onTasmee,
   });
 
   @override
@@ -85,12 +93,24 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
               builder: (context, snap) {
                 final fontReady = snap.data ?? false;
                 if (lines.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  children: [
-                    for (final line in lines)
-                      Expanded(child: _line(line, fontReady)),
-                  ],
-                );
+                // Lines stretch (Expanded); a surah-start banner + Basmala are
+                // inserted as fixed-height blocks before the line that begins a
+                // new surah.
+                final children = <Widget>[];
+                for (final line in lines) {
+                  final first = _firstGlyphOf(line);
+                  if (first != null &&
+                      first.type == 'word' &&
+                      first.ayah == 1 &&
+                      _isFirstWord(first)) {
+                    children.add(_surahBanner(first.surah));
+                    if (first.surah != 1 && first.surah != 9) {
+                      children.add(_basmala());
+                    }
+                  }
+                  children.add(Expanded(child: _line(line, fontReady)));
+                }
+                return Column(children: children);
               },
             ),
           ),
@@ -241,16 +261,75 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
     );
   }
 
+  // wordId is "<surah>:<ayah>:<wordIndex>"; surah start = ayah 1, word 1.
+  bool _isFirstWord(PageGlyph g) => g.wordId?.endsWith(':1') ?? false;
+
+  PageGlyph? _firstGlyphOf(int line) {
+    PageGlyph? best;
+    for (final g in widget.glyphs) {
+      if (g.lineNumber != line) continue;
+      if (best == null || g.positionInPage < best.positionInPage) best = g;
+    }
+    return best;
+  }
+
+  Widget _surahBanner(int surah) {
+    final name = widget.surahNames?[surah] ?? 'سورة $surah';
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTokens.primary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC9A14A), width: 1.5), // gold
+      ),
+      child: Text(
+        name,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+            color: Color(0xFFF4E9C8), fontSize: 18, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _basmala() {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 4),
+      child: Text(
+        'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+        textAlign: TextAlign.center,
+        textScaler: TextScaler.noScaling,
+        style: TextStyle(color: _kInk, fontSize: 18),
+      ),
+    );
+  }
+
   Widget _bottomBar(BuildContext context) {
-    Widget pill(String label) => Text(label,
+    Widget side(Widget child, AlignmentGeometry a) =>
+        Expanded(child: Align(alignment: a, child: child));
+    final juzLabel = Text(widget.juz != null ? 'الجزء ${widget.juz}' : '',
         style: const TextStyle(color: _kInk, fontSize: 13));
+    // Right side: تسميع button in reader mode, otherwise the hizb label.
+    final Widget rightSide = widget.onTasmee != null
+        ? FilledButton.icon(
+            onPressed: widget.onTasmee,
+            icon: const Icon(Icons.mic, size: 18),
+            label: const Text('تسميع'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            ),
+          )
+        : Text(widget.hizb != null ? 'الحزب ${widget.hizb}' : '',
+            style: const TextStyle(color: _kInk, fontSize: 13));
+
     return Container(
       color: _kBar,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          pill(widget.juz != null ? 'الجزء ${widget.juz}' : ''),
+          side(juzLabel, AlignmentDirectional.centerStart),
+          // Truly centered page pill (both sides are equal-width Expanded).
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
@@ -260,7 +339,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
             child: Text('${widget.pageNumber}',
                 style: const TextStyle(color: Colors.white, fontSize: 13)),
           ),
-          pill(widget.hizb != null ? 'الحزب ${widget.hizb}' : ''),
+          side(rightSide, AlignmentDirectional.centerEnd),
         ],
       ),
     );
