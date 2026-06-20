@@ -307,10 +307,11 @@ class RecitationController {
   /// Broad re-anchor recovery (spec: dual-mode tracking). Searches the whole
   /// scope for where [tokens] best aligns; if confident and different from the
   /// current cursor, jumps there, reveals the matched run, and — for a forward
-  /// jump — records a `forget` for every never-accepted word in the skipped
-  /// range `[oldCursor, anchor.startIndex)`, exactly like Reveal Full Ayah. So
-  /// a skipped ayah surfaces in the report's نسيان bucket and weak-item
-  /// aggregation, not just as a generic "reordered" note. Returns true if it
+  /// jump — records an `asrLag` for every never-revealed word in the skipped
+  /// range `[oldCursor, anchor.startIndex)` AND reveals it on the page. Those
+  /// words were recited correctly (the ASR merely fell behind), so they fill in
+  /// visually like a normal match and surface in the report's تأخر تعرف bucket,
+  /// excluded from scoring / weak-item aggregation. Returns true if it
   /// re-anchored.
   bool _tryReanchor(List<String> tokens, double confidence) {
     final anchor = findBestAnchor(
@@ -327,10 +328,16 @@ class RecitationController {
     // Forward jump → everything between the old cursor and the anchor was
     // skipped because ASR fell behind. These were (almost certainly) recited
     // correctly, so classify them as `asrLag`, NOT `forget` — surfaced in the
-    // report but excluded from scoring / weak items.
+    // report but excluded from scoring / weak items. Because we now treat them
+    // as correctly recited, REVEAL them on the page too (same as a normal
+    // match), so the mushaf fills in instead of leaving a wall of gray pills
+    // that contradicts the report.
     for (var i = oldCursor; i < anchor.startIndex && i < scope.length; i++) {
       if (!_revealedIndices.contains(i)) {
         _recordAsrLag(i);
+        _revealedIndices.add(i);
+        onReveal?.call(i);
+        _emit(RecitationEventType.reveal, i);
       }
     }
 

@@ -135,19 +135,20 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           'err=${_controller.lastError?.errorType.name ?? '-'}');
       dlog('  expected@$before=$expWin  recognized=$recog');
 
-      // If this utterance re-anchored, print the exact skipped range + forgets.
+      // If this utterance re-anchored, print the asrLag range that was jumped
+      // (now revealed on the page, classified asrLag — not a forget).
       final reanchor = _controller.events
           .skip(eventsBefore)
           .where((e) => e.type == RecitationEventType.reanchored)
           .lastOrNull;
       if (reanchor != null) {
         final anchorStart = reanchor.index ?? before;
-        final skipped = [
+        final lagged = [
           for (var i = before; i < anchorStart && i < _scope.length; i++)
-            if (!_controller.revealedIndices.contains(i)) _scope[i].wordId,
+            _scope[i].wordId,
         ];
-        dlog('  RE-ANCHOR skipped ${skipped.length} word(s) '
-            '[$before..${anchorStart - 1}] → forgets logged: $skipped');
+        dlog('  RE-ANCHOR jumped ${lagged.length} word(s) '
+            '[$before..${anchorStart - 1}] → asrLag (revealed): $lagged');
       }
       _refresh();
     });

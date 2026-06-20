@@ -294,6 +294,11 @@ void main() {
           isTrue);
       expect(c.cursor, 8, reason: 'jumped to 6 and consumed 6,7');
       expect(c.revealedIndices, containsAll(<int>[6, 7]));
+      // The skipped (asrLag) range must ALSO be revealed on the page, so the
+      // mushaf fills in instead of showing gray pills that contradict the
+      // report's "heard correctly" classification.
+      expect(c.revealedIndices, containsAll(<int>[0, 1, 2, 3, 4, 5]),
+          reason: 'asrLag range reveals visually like a normal match');
       // Stuck counter reset after recovery.
       expect(c.consecutiveStuck, 0);
 
