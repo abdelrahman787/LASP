@@ -349,7 +349,6 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title ??
@@ -370,13 +369,6 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       ),
       body: Column(
         children: [
-          if (_controller.silenceIndicatorVisible)
-            Container(
-              width: double.infinity,
-              color: theme.colorScheme.secondaryContainer,
-              padding: const EdgeInsets.all(8),
-              child: const Text('… نستمع', textAlign: TextAlign.center),
-            ),
           Expanded(
             child: MushafPageWidget(
               pageNumber: widget.pageNumber,

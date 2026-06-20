@@ -67,21 +67,82 @@ class MushafPageWidget extends StatefulWidget {
 class _MushafPageWidgetState extends State<MushafPageWidget> {
   late Future<bool> _fontReady;
 
+  // --- per-page precomputed layout (rebuilt only when the page changes) ------
+  // Grouping the glyphs by line ONCE avoids re-scanning all ~150 page glyphs
+  // for every one of the 15 lines on every build (the old O(lines×glyphs) cost).
+  List<int> _lines = const [];
+  final Map<int, List<PageGlyph>> _byLine = {};
+  final Map<int, PageGlyph> _firstOf = {};
+
+  // Measurement cache: line → summed glyph width at a reference font size (10px).
+  // A glyph's advance width scales ~linearly with font size, so the natural line
+  // width at any fs is `_sum10[line] * fs / 10`. This removes the per-build
+  // TextPainter.layout() storm (one layout per glyph, every build) that was the
+  // page-swipe jank — after the first measure, fitting is pure arithmetic.
+  static const double _refFs = 10.0;
+  final Map<int, double> _sum10 = {};
+  bool? _sum10For; // the fontReady value the cache was measured under
+
   @override
   void initState() {
     super.initState();
+    _index();
     _fontReady = PageFontLoader.ensure(widget.pageNumber);
   }
 
   @override
+  void didUpdateWidget(covariant MushafPageWidget old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.glyphs, widget.glyphs) ||
+        old.pageNumber != widget.pageNumber) {
+      _index();
+      if (old.pageNumber != widget.pageNumber) {
+        _fontReady = PageFontLoader.ensure(widget.pageNumber);
+      }
+    }
+  }
+
+  /// Group glyphs by line, sort each line by reading order, and record the first
+  /// glyph per line — all once per page (not per build).
+  void _index() {
+    _byLine.clear();
+    _firstOf.clear();
+    _sum10.clear();
+    _sum10For = null;
+    for (final g in widget.glyphs) {
+      if (g.lineNumber <= 0) continue;
+      (_byLine[g.lineNumber] ??= []).add(g);
+    }
+    for (final entry in _byLine.entries) {
+      entry.value.sort((a, b) => a.positionInPage.compareTo(b.positionInPage));
+      _firstOf[entry.key] = entry.value.first;
+    }
+    _lines = _byLine.keys.toList()..sort();
+  }
+
+  /// Summed glyph width for [line] at [_refFs], measured once and cached. The
+  /// cache auto-invalidates when [fontReady] flips (the real page font changes
+  /// glyph metrics vs. the fallback font).
+  double _lineSum10(int line, List<PageGlyph> glyphs, bool fontReady) {
+    if (_sum10For != fontReady) {
+      _sum10.clear();
+      _sum10For = fontReady;
+    }
+    return _sum10[line] ??= () {
+      var sum = 0.0;
+      for (final g in glyphs) {
+        sum += _measureGlyph(g, _refFs, fontReady);
+      }
+      return sum;
+    }();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Build a slot ONLY for line numbers that actually have glyphs on this page
-    // (sorted). These slots then stretch to fill 100% of the height — no dead
-    // blank flex slots, so no large empty gap regardless of how many lines a
-    // page uses (e.g. the framed Al-Fatiha page uses fewer than 15).
-    final lines =
-        widget.glyphs.map((g) => g.lineNumber).where((l) => l > 0).toSet().toList()
-          ..sort();
+    // Lines with glyphs on this page (precomputed once via _index). Slots stretch
+    // to fill 100% of the height — no dead blank flex slots, so no large empty
+    // gap regardless of how many lines a page uses (Al-Fatiha uses fewer than 15).
+    final lines = _lines;
     return Column(
       children: [
         if (widget.showTopBar) _topBar(context),
@@ -99,7 +160,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
                 // new surah.
                 final children = <Widget>[];
                 for (final line in lines) {
-                  final first = _firstGlyphOf(line);
+                  final first = _firstOf[line];
                   if (first != null &&
                       first.type == 'word' &&
                       first.ayah == 1 &&
@@ -109,7 +170,10 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
                       children.add(_basmala());
                     }
                   }
-                  children.add(Expanded(child: _line(line, fontReady)));
+                  // RepaintBoundary isolates a line so a word reveal/cursor move
+                  // repaints only that line, not the whole page.
+                  children.add(Expanded(
+                      child: RepaintBoundary(child: _line(line, fontReady))));
                 }
                 return Column(children: children);
               },
@@ -122,9 +186,8 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
   }
 
   Widget _line(int line, bool fontReady) {
-    final glyphs = widget.glyphs.where((g) => g.lineNumber == line).toList()
-      ..sort((a, b) => a.positionInPage.compareTo(b.positionInPage));
-    if (glyphs.isEmpty) return const SizedBox.shrink();
+    final glyphs = _byLine[line];
+    if (glyphs == null || glyphs.isEmpty) return const SizedBox.shrink();
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -140,10 +203,9 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
           // px of layout rounding slack.
           final budget =
               (c.maxWidth - glyphs.length * 2 - 12).clamp(1.0, c.maxWidth);
-          var natural = 0.0;
-          for (final g in glyphs) {
-            natural += _measureGlyph(g, fs, fontReady);
-          }
+          // Natural width via the cached reference-size measurement (linear in
+          // fs) — no per-build TextPainter.layout() storm.
+          final natural = _lineSum10(line, glyphs, fontReady) * fs / _refFs;
           // Always derive fs from the fit ratio (×0.97 safety), so even a line
           // whose natural width is just under budget can't overflow from
           // measurement-vs-layout rounding. No lower clamp.
@@ -264,15 +326,6 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
 
   // wordId is "<surah>:<ayah>:<wordIndex>"; surah start = ayah 1, word 1.
   bool _isFirstWord(PageGlyph g) => g.wordId?.endsWith(':1') ?? false;
-
-  PageGlyph? _firstGlyphOf(int line) {
-    PageGlyph? best;
-    for (final g in widget.glyphs) {
-      if (g.lineNumber != line) continue;
-      if (best == null || g.positionInPage < best.positionInPage) best = g;
-    }
-    return best;
-  }
 
   Widget _surahBanner(int surah) {
     final name = widget.surahNames?[surah] ?? 'سورة $surah';
