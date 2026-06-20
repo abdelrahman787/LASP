@@ -4,6 +4,7 @@ import '../../app/data/quran_repository.dart';
 import '../../app/theme.dart';
 import 'mushaf_page_controller.dart';
 import 'page_font_loader.dart';
+import 'surah_banner.dart';
 
 // The Mushaf Exception (DESIGN.md): cream paper, never glass.
 const Color _kCream = AppTokens.mushafPaper;
@@ -275,21 +276,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
 
   Widget _surahBanner(int surah) {
     final name = widget.surahNames?[surah] ?? 'سورة $surah';
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppTokens.primary,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFC9A14A), width: 1.5), // gold
-      ),
-      child: Text(
-        name,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-            color: Color(0xFFF4E9C8), fontSize: 18, fontWeight: FontWeight.w700),
-      ),
-    );
+    return SurahBanner(name: name);
   }
 
   Widget _basmala() {

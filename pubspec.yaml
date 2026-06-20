@@ -47,6 +47,9 @@ flutter:
     # On-device ASR model (built locally by tools/asr/export_onnx.py; gitignored
     # except .gitkeep — the app falls back to GroqAsrService if absent).
     - assets/models/tarteel/
+    # Self-authored decorative surah-name frame (tools/art/make_surah_banner.py).
+    # Committed (not gitignored) — one shared asset reused for all surahs.
+    - assets/decor/
   fonts:
     # Bundled locally (offline-first) — no runtime font fetch.
     - family: IBM Plex Sans Arabic
