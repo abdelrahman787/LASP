@@ -35,8 +35,27 @@ class TarteelOnDeviceAsrService implements AsrService {
   bool _running = false;
   bool _paused = false;
   bool _initFailed = false;
+  // True while draining the final VAD tail at stop(), so those last results are
+  // still delivered even though _running has been cleared.
+  bool _finalizing = false;
   void Function(AsrResult)? _onResult;
   StreamSubscription<Uint8List>? _sub;
+
+  // --- capture audit (proof that nothing spoken is dropped) ------------------
+  // Every PCM chunk the mic delivers is counted here BEFORE any conditional, and
+  // again when it is actually forwarded to the worker. The worker counts every
+  // sample it feeds into the VAD. At session end we log all three so a mismatch
+  // (= silent data loss) is directly visible instead of merely assumed.
+  //
+  // Why the cross-isolate hop cannot silently drop a chunk: a Dart ReceivePort
+  // is an UNBOUNDED FIFO — messages are queued on the receiving isolate's event
+  // loop and never discarded under backlog. If a decode is still running when
+  // new mic chunks arrive, those chunks simply wait their turn in the queue and
+  // are processed in order once the worker's microtask returns; none are lost.
+  // (Average decode RTF < 1, so the queue drains rather than growing without
+  // bound.) The counters below are the empirical check on that guarantee.
+  int _micBytes = 0; // total PCM bytes seen from the mic callback
+  int _sentBytes = 0; // total PCM bytes forwarded to the worker
 
   // Worker isolate (kept alive across sessions so the model stays loaded; it
   // stays running via its open ReceivePort, no handle needed).
@@ -81,10 +100,26 @@ class TarteelOnDeviceAsrService implements AsrService {
               // audio=segment length, decode=actual inference wall-time (the
               // number that matters when A/B-ing providers/threads/maxSpeech).
               dlog('tarteel result "$text" audio=${msg['dur']}s '
-                  'decode=${msg['ms']}ms');
-              if (_running && !_paused) {
+                  '(+${msg['overlap']}s overlap) decode=${msg['ms']}ms');
+              if ((_running && !_paused) || _finalizing) {
                 _onResult?.call(AsrResult(text, text.isEmpty ? 0 : 0.9));
               }
+              break;
+            case 'counts':
+              _finalizing = false; // finalize results have all arrived by now
+              // Session-end capture audit. micSamples = everything the mic gave
+              // us; vadSamples = everything the worker fed into the VAD. They
+              // must be equal (the worker accepts every chunk it receives), and
+              // sentSamples must equal micSamples (we forward unconditionally
+              // while running). Any gap is real, silent data loss.
+              final vadSamples = msg['vadSamples'] as int;
+              final micSamples = _micBytes ~/ 2;
+              final sentSamples = _sentBytes ~/ 2;
+              final ok = micSamples == sentSamples && sentSamples == vadSamples;
+              dlog('CAPTURE AUDIT ${ok ? 'OK' : 'MISMATCH!!'} — '
+                  'mic=$micSamples sent=$sentSamples vad-accepted=$vadSamples '
+                  'samples (${(micSamples / _sampleRate).toStringAsFixed(2)}s '
+                  'captured). lost=${micSamples - vadSamples} samples');
               break;
           }
         }
@@ -135,7 +170,10 @@ class TarteelOnDeviceAsrService implements AsrService {
       onResult(const AsrResult('', 0));
       return;
     }
+    _micBytes = 0;
+    _sentBytes = 0;
     _toWorker?.send('reset'); // fresh VAD state for this session
+    _toWorker?.send('audit_begin'); // zero the worker's sample counter
     try {
       final stream = await _recorder.startStream(
         const RecordConfig(
@@ -148,7 +186,16 @@ class TarteelOnDeviceAsrService implements AsrService {
       _paused = false;
       _sub = stream.listen(
         (chunk) {
-          if (_running && !_paused) _toWorker?.send(chunk);
+          // Count EVERYTHING the mic delivers, before any condition, so the
+          // audit can detect a chunk that never made it to the worker.
+          _micBytes += chunk.length;
+          // Forward unconditionally while actively listening. The only skip is
+          // while paused — when the mic is itself paused, so no audio is being
+          // captured to lose.
+          if (_running && !_paused) {
+            _sentBytes += chunk.length;
+            _toWorker?.send(chunk);
+          }
         },
         onError: (Object e) => dlog('stream error: $e'),
         cancelOnError: false,
@@ -193,6 +240,15 @@ class TarteelOnDeviceAsrService implements AsrService {
     try {
       if (await _recorder.isRecording()) await _recorder.stop();
     } catch (_) {}
+    // Decode any speech still buffered in the VAD (e.g. the last words, if stop
+    // lands before their trailing silence ends a segment) so nothing spoken is
+    // dropped at session end. Messages are FIFO, so all already-sent chunks are
+    // accepted before 'finalize' runs.
+    _finalizing = true;
+    _toWorker?.send('finalize');
+    // Ask the worker for its sample count, so the audit reflects the whole
+    // session; the 'counts' reply is logged by the _fromWorker listener.
+    _toWorker?.send('audit_report');
     _toWorker?.send('reset'); // clear VAD; keep the isolate (model) cached
     dlog('tarteel mic stop');
   }
@@ -234,6 +290,14 @@ const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
 const double _kMaxSpeechDuration = 5.0; // Test D: was 7.0 (cap worst-case wait)
 const double _kMinSilenceDuration = 0.45;
 const double _kVadThreshold = 0.5;
+
+/// Seconds of audio carried from the END of one VAD segment into the START of
+/// the next before recognition. A word clipped at a segment boundary (natural
+/// silence OR a `maxSpeechDuration` force-cut) then appears whole in at least
+/// one of the two adjacent recognizer calls instead of being split across both.
+/// The duplicated overlap text is harmless: the matching engine treats a
+/// re-recited trailing word as a context replay, not an error.
+const double _kSegmentOverlap = 0.6;
 
 void _workerMain(_AsrInit init) {
   const sampleRate = 16000;
@@ -298,10 +362,37 @@ void _workerMain(_AsrInit init) {
     return out;
   }
 
+  // Capture audit: every sample fed into the VAD this session.
+  var vadSamples = 0;
+  // Boundary overlap: tail of the previously-decoded segment.
+  final overlapLen = (_kSegmentOverlap * sampleRate).round();
+  Float32List? prevTail;
+
   void drainVad() {
     while (!vad.isEmpty()) {
       final seg = vad.front();
       vad.pop();
+
+      // Prepend the previous segment's tail so a word split at the boundary is
+      // intact here too. `decoded` is what we hand the recognizer; `seg.samples`
+      // is the raw VAD segment (used for the new tail and the timing log).
+      Float32List decoded;
+      if (prevTail != null && prevTail!.isNotEmpty) {
+        decoded = Float32List(prevTail!.length + seg.samples.length);
+        decoded.setRange(0, prevTail!.length, prevTail!);
+        decoded.setRange(prevTail!.length, decoded.length, seg.samples);
+      } else {
+        decoded = seg.samples;
+      }
+
+      // Save this segment's tail (from the raw segment) for the next call.
+      final segN = seg.samples.length;
+      if (overlapLen > 0 && segN > 0) {
+        final tailLen = segN < overlapLen ? segN : overlapLen;
+        prevTail = Float32List.fromList(
+            seg.samples.sublist(segN - tailLen, segN));
+      }
+
       var text = '';
       // Wall-time of the full inference (encode+decode) for this segment. Note:
       // the high-level recognizer.decode() runs encode+decode together, so the
@@ -310,7 +401,7 @@ void _workerMain(_AsrInit init) {
       final sw = Stopwatch()..start();
       try {
         final s = recognizer.createStream();
-        s.acceptWaveform(samples: seg.samples, sampleRate: sampleRate);
+        s.acceptWaveform(samples: decoded, sampleRate: sampleRate);
         recognizer.decode(s);
         text = recognizer.getResult(s).text;
         s.free();
@@ -322,6 +413,8 @@ void _workerMain(_AsrInit init) {
         'type': 'result',
         'text': text,
         'dur': (seg.samples.length / sampleRate).toStringAsFixed(2),
+        'overlap': (((decoded.length - seg.samples.length)) / sampleRate)
+            .toStringAsFixed(2),
         'ms': sw.elapsedMilliseconds,
       });
     }
@@ -329,7 +422,9 @@ void _workerMain(_AsrInit init) {
 
   port.listen((msg) {
     if (msg is Uint8List) {
-      vad.acceptWaveform(toFloat(msg));
+      final f = toFloat(msg);
+      vadSamples += f.length; // count BEFORE accepting — proof of processing
+      vad.acceptWaveform(f);
       drainVad();
     } else if (msg == 'reset') {
       try {
@@ -338,6 +433,18 @@ void _workerMain(_AsrInit init) {
           vad.pop();
         }
       } catch (_) {}
+      prevTail = null; // don't bleed overlap across a flush/new session
+    } else if (msg == 'finalize') {
+      // End of session: force any buffered speech into a final segment and
+      // decode it so the last words are never lost.
+      try {
+        vad.flush();
+      } catch (_) {}
+      drainVad();
+    } else if (msg == 'audit_begin') {
+      vadSamples = 0;
+    } else if (msg == 'audit_report') {
+      init.toMain.send({'type': 'counts', 'vadSamples': vadSamples});
     } else if (msg == 'dispose') {
       port.close();
     }
