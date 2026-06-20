@@ -80,6 +80,12 @@ class SessionReport {
   /// نطق (pronunciation) — low-confidence accepts (correct but flagged).
   final List<ReportEntry> pronunciations;
 
+  /// تأخر تعرف (asr lag) — words a re-anchor jumped over because the ASR fell
+  /// behind the reciter. NOT a memorization mistake: surfaced for transparency
+  /// but deliberately excluded from [score], [confirmedErrors], per-ayah
+  /// accuracy, and weak-item aggregation.
+  final List<ReportEntry> asrLag;
+
   final int totalWords;
 
   /// Distinct words whose worst recorded mistake is confirmed (attempt 3+,
@@ -102,6 +108,7 @@ class SessionReport {
     required this.additions,
     required this.orderErrors,
     required this.pronunciations,
+    required this.asrLag,
     required this.totalWords,
     required this.confirmedErrors,
     required this.softErrors,
@@ -167,6 +174,7 @@ SessionReport buildSessionReport({
   final additions = <ReportEntry>[];
   final orderErrors = <ReportEntry>[];
   final pronunciations = <ReportEntry>[];
+  final asrLag = <ReportEntry>[];
 
   // Track the worst severity per distinct word (for the score) and the single
   // display winner per word (the LAST-logged error wins — clock-independent,
@@ -180,9 +188,15 @@ SessionReport buildSessionReport({
       // them defensively if a caller passes them in.
       continue;
     }
-    final prev = worstByWord[e.wordId];
-    if (prev == null || _severityRank(e.severity) > _severityRank(prev)) {
-      worstByWord[e.wordId] = e.severity;
+    // asrLag is not a mistake — it must NOT contribute to the score, the
+    // confirmed/soft counts, or per-ayah accuracy. Keep it out of worstByWord
+    // entirely, but still let it win the display bucket if it's the last word
+    // classification (so the transparency bucket is populated).
+    if (e.errorType != ErrorType.asrLag) {
+      final prev = worstByWord[e.wordId];
+      if (prev == null || _severityRank(e.severity) > _severityRank(prev)) {
+        worstByWord[e.wordId] = e.severity;
+      }
     }
     displayWinner[e.wordId] = e; // last occurrence wins
   }
@@ -207,6 +221,9 @@ SessionReport buildSessionReport({
         break;
       case ErrorType.pronunciation:
         pronunciations.add(entry);
+        break;
+      case ErrorType.asrLag:
+        asrLag.add(entry);
         break;
     }
   }
@@ -268,6 +285,7 @@ SessionReport buildSessionReport({
     additions: additions,
     orderErrors: orderErrors,
     pronunciations: pronunciations,
+    asrLag: asrLag,
     totalWords: totalWords,
     confirmedErrors: confirmed,
     softErrors: soft,

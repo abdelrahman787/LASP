@@ -138,6 +138,9 @@ class ReviewService {
 
     for (final e in errors) {
       if (e.severity != ErrorSeverity.confirmed) continue; // ignore soft/flag
+      // asrLag is a system limitation (ASR fell behind), not a memorization
+      // gap — it must never inflate a word's errorCount / weaken its mastery.
+      if (e.errorType == ErrorType.asrLag) continue;
       final parsed = parseWordId(e.wordId);
       if (parsed == null) {
         // Malformed id — skip rather than writing a garbage 0:0:0 weak item.

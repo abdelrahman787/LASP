@@ -135,6 +135,29 @@ void main() {
       expect(r.confirmedErrors, 1);
       expect(r.softErrors, 0);
     });
+
+    test('asrLag lands in its own bucket and is excluded from scoring', () {
+      final scope = twoAyahScope(); // 8 words
+      final errors = [
+        re('1:1:1', ErrorType.asrLag),
+        re('1:1:2', ErrorType.asrLag),
+        re('1:1:3', ErrorType.forget), // a real confirmed forget
+      ];
+      final r = buildSessionReport(scope: scope, errors: errors);
+
+      expect(r.asrLag.map((e) => e.wordId), equals(['1:1:1', '1:1:2']));
+      // asrLag words appear in NO other bucket.
+      expect(r.forgetSilence.map((e) => e.wordId), equals(['1:1:3']));
+      expect(r.forgetManual, isEmpty);
+
+      // Only the genuine forget counts toward the score.
+      expect(r.confirmedErrors, 1, reason: 'asrLag excluded from confirmed');
+      expect(r.score, closeTo(1 - 1 / 8, 1e-9));
+
+      // Per-ayah accuracy ignores asrLag too: ayah 1 has 4 words, only one
+      // (the forget) counts as wrong.
+      expect(r.perAyah[0].errorWords, 1);
+    });
   });
 
   group('score (confirmed vs soft) + per-ayah accuracy', () {
@@ -226,6 +249,37 @@ void main() {
       // Returned ordered by errorCount desc.
       expect(top.first.wordId, '1:1:1'); // errorCount 3
       expect(top.length, 2);
+    });
+
+    test('asrLag does NOT inflate weak-item error counts', () async {
+      final weak = InMemoryWeakItemRepository();
+      final service = ReviewService(
+        weakItems: weak,
+        plans: InMemoryPlanRepository(),
+        history: InMemoryReviewHistoryRepository(),
+      );
+
+      // A re-anchor skipped these words (logged confirmed asrLag) plus one real
+      // confirmed forget. Only the forget should create/raise a weak item.
+      final errors = [
+        re('1:1:1', ErrorType.asrLag, at: now),
+        re('1:1:2', ErrorType.asrLag, at: now),
+        re('1:1:3', ErrorType.asrLag, at: now),
+        re('1:1:4', ErrorType.forget, at: now), // genuine forget
+      ];
+
+      final top = await service.ingestSession(errors: errors, nowMs: now);
+
+      // None of the asrLag words became weak items.
+      expect(await weak.get('1:1:1'), isNull);
+      expect(await weak.get('1:1:2'), isNull);
+      expect(await weak.get('1:1:3'), isNull);
+
+      // The genuine forget is the only weak item.
+      final w4 = await weak.get('1:1:4');
+      expect(w4!.errorCount, 1);
+      expect(top.length, 1);
+      expect(top.single.wordId, '1:1:4');
     });
   });
 

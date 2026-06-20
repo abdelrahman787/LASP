@@ -97,6 +97,7 @@ class ReportScreen extends StatelessWidget {
           _Bucket('زيادة', report.additions, showRecognized: true),
           _Bucket('خطأ ترتيب', report.orderErrors),
           _Bucket('نطق', report.pronunciations),
+          _Bucket('تأخر تعرف', report.asrLag, subtitleNote: true),
           if (continuePage != null) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
@@ -162,16 +163,22 @@ class _Bucket extends StatelessWidget {
   final List<ReportEntry> entries;
   final bool showExpectedVsRecognized;
   final bool showRecognized;
+
+  /// Shows an explanatory note that this bucket is informational only (used for
+  /// "تأخر تعرف" / asrLag — these are NOT counted as mistakes).
+  final bool subtitleNote;
   const _Bucket(
     this.title,
     this.entries, {
     this.showExpectedVsRecognized = false,
     this.showRecognized = false,
+    this.subtitleNote = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassCard(
@@ -179,6 +186,14 @@ class _Bucket extends StatelessWidget {
         child: ExpansionTile(
           shape: const Border(),
           title: Text('$title (${entries.length})'),
+          subtitle: subtitleNote
+              ? Text(
+                  'تخطّاها النظام لتأخر التعرّف — لا تُحتسب ضمن الأخطاء',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              : null,
           children: [
           for (final e in entries)
             ListTile(

@@ -231,7 +231,7 @@ class _AsrInit {
 ///  - _kMinSilenceDuration: pause length needed to END a segment (higher avoids
 ///      mid-word cuts on breathing pauses).
 const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
-const double _kMaxSpeechDuration = 7.0; // was 12.0
+const double _kMaxSpeechDuration = 5.0; // Test D: was 7.0 (cap worst-case wait)
 const double _kMinSilenceDuration = 0.45;
 const double _kVadThreshold = 0.5;
 

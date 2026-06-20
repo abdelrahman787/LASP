@@ -297,23 +297,31 @@ void main() {
       // Stuck counter reset after recovery.
       expect(c.consecutiveStuck, 0);
 
-      // Every skipped, never-accepted word [0..5] is logged as a forget.
+      // Every skipped, never-accepted word [0..5] is logged as asrLag — NOT
+      // forget: the reciter said them, the ASR just fell behind.
       final forgets =
           logger.errors.where((e) => e.errorType == ErrorType.forget).toList();
-      expect(forgets.length, 6);
-      expect(forgets.map((e) => e.wordId),
+      expect(forgets, isEmpty, reason: 'skipped range is asrLag, not forget');
+      final lags =
+          logger.errors.where((e) => e.errorType == ErrorType.asrLag).toList();
+      expect(lags.length, 6);
+      expect(lags.map((e) => e.wordId),
           equals(['1:1:1', '1:1:2', '1:1:3', '1:1:4', '1:2:1', '1:2:2']));
-      expect(forgets.every((e) => !e.manualReveal), isTrue);
+      expect(lags.every((e) => !e.manualReveal), isTrue);
 
-      // The report's نسيان bucket reflects the whole skipped range.
+      // The report routes them to the dedicated تأخر تعرف bucket and EXCLUDES
+      // them from the forget buckets and the (scored) confirmed-error count.
       final report =
           buildSessionReport(scope: fatihaScope(), errors: logger.errors);
-      expect(report.forgetSilence.length, 6);
+      expect(report.asrLag.length, 6);
+      expect(report.forgetSilence, isEmpty);
       expect(report.forgetManual, isEmpty);
-      expect(report.confirmedErrors, 6);
+      expect(report.confirmedErrors, 0,
+          reason: 'asrLag must not count toward the score');
+      expect(report.score, 1.0);
     });
 
-    test('small-gap jump (2 words) logs forgets for the exact range', () {
+    test('small-gap jump (2 words) logs asrLag for the exact range', () {
       c = build(); // cursor 0
       c.start();
       // Recite indices 2,3 (الرحمن الرحيم) while stuck at cursor 0 → 2-word gap.
@@ -327,17 +335,18 @@ void main() {
       expect(c.cursor, 4, reason: 'jumped to 2, consumed 2,3');
       expect(c.revealedIndices, containsAll(<int>[2, 3]));
 
-      // Exactly indices [0,1] skipped → 2 forgets, boundary is exclusive of 2.
-      final forgets =
-          logger.errors.where((e) => e.errorType == ErrorType.forget).toList();
-      expect(forgets.length, 2);
-      expect(forgets.map((e) => e.wordId), equals(['1:1:1', '1:1:2']));
-      // The anchor word (index 2) must NOT be a forget (off-by-one guard).
-      expect(forgets.any((e) => e.wordId == '1:1:3'), isFalse);
+      // Exactly indices [0,1] skipped → 2 asrLag, boundary exclusive of 2.
+      final lags =
+          logger.errors.where((e) => e.errorType == ErrorType.asrLag).toList();
+      expect(lags.length, 2);
+      expect(lags.map((e) => e.wordId), equals(['1:1:1', '1:1:2']));
+      // The anchor word (index 2) must NOT be a lag (off-by-one guard).
+      expect(lags.any((e) => e.wordId == '1:1:3'), isFalse);
 
       final report =
           buildSessionReport(scope: fatihaScope(), errors: logger.errors);
-      expect(report.forgetSilence.length, 2);
+      expect(report.asrLag.length, 2);
+      expect(report.forgetSilence, isEmpty);
     });
 
     test('no re-anchor when the utterance has no confident anchor', () {

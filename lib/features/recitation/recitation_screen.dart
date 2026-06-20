@@ -303,6 +303,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     dlog('زيادة/addition       (${r.additions.length}): ${ids(r.additions)}');
     dlog('ترتيب/order          (${r.orderErrors.length}): ${ids(r.orderErrors)}');
     dlog('نطق/pronunciation    (${r.pronunciations.length}): ${ids(r.pronunciations)}');
+    dlog('تأخر تعرف/asrLag     (${r.asrLag.length}): ${ids(r.asrLag)} [not scored]');
     dlog('perAyah: ${r.perAyah.map((a) => '${a.surah}:${a.ayah}='
         '${(a.accuracy * 100).round()}%(${a.errorWords}/${a.totalWords})').toList()}');
     dlog('========================================================');

@@ -20,11 +20,16 @@ import 'distance.dart';
 import 'recitation_config.dart';
 
 /// Backend error taxonomy — stored verbatim as these strings in Firestore.
-enum ErrorType { forget, substitution, order, pronunciation, addition }
+///
+/// `asrLag` is NOT a recitation mistake: it marks words the system skipped over
+/// when a re-anchor jumped the cursor forward because ASR fell behind the
+/// reciter. They were (almost certainly) recited correctly — surfaced for
+/// transparency but excluded from scoring / weak-item aggregation.
+enum ErrorType { forget, substitution, order, pronunciation, addition, asrLag }
 
 extension ErrorTypeWire on ErrorType {
   /// The exact string persisted to Firestore / matched by the backend enum.
-  String get wire => name; // forget | substitution | order | pronunciation | addition
+  String get wire => name; // forget|substitution|order|pronunciation|addition|asrLag
 }
 
 /// One expected word in the recitation scope. `norm` is the pre-normalized

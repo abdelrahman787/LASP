@@ -325,10 +325,12 @@ class RecitationController {
     final oldCursor = _cursor;
 
     // Forward jump → everything between the old cursor and the anchor was
-    // skipped. Log each never-accepted word as a direct forget (not silent).
+    // skipped because ASR fell behind. These were (almost certainly) recited
+    // correctly, so classify them as `asrLag`, NOT `forget` — surfaced in the
+    // report but excluded from scoring / weak items.
     for (var i = oldCursor; i < anchor.startIndex && i < scope.length; i++) {
       if (!_revealedIndices.contains(i)) {
-        _recordForget(i, manualReveal: false);
+        _recordAsrLag(i);
       }
     }
 
@@ -502,6 +504,26 @@ class RecitationController {
       confidence: 0.0,
       attempts: 0,
       manualReveal: manualReveal,
+      severity: ErrorSeverity.confirmed,
+      createdAt: now(),
+    ));
+  }
+
+  /// Record an `asrLag` for a word the re-anchor jumped over. NOT a memorization
+  /// mistake: the reciter (almost certainly) said it correctly and the ASR
+  /// simply fell behind, so the report surfaces it in its own bucket but the
+  /// scoring / weak-item aggregation ignores it. Kept structurally parallel to
+  /// [_recordForget] (severity `confirmed` so the dedup/report layer treats it
+  /// as a final, non-transient classification for the word).
+  void _recordAsrLag(int index) {
+    logger.record(RecordedError(
+      wordId: scope[index].wordId,
+      expectedText: _expectedText(index),
+      recognizedText: null,
+      errorType: ErrorType.asrLag,
+      confidence: 0.0,
+      attempts: 0,
+      manualReveal: false,
       severity: ErrorSeverity.confirmed,
       createdAt: now(),
     ));
