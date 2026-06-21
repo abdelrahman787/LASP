@@ -41,6 +41,10 @@ class MushafPageWidget extends StatefulWidget {
   /// surah id → Arabic name, for the surah-start banner (optional).
   final Map<int, String>? surahNames;
 
+  /// surah id → ayah count, for the full-page frame's bottom cartouche
+  /// (Al-Fatiha / Al-Baqarah opening). Optional.
+  final Map<int, int>? surahAyahCounts;
+
   /// If provided, a تسميع button is shown in the bottom bar (reader mode).
   final VoidCallback? onTasmee;
 
@@ -57,6 +61,7 @@ class MushafPageWidget extends StatefulWidget {
     this.onBookmark,
     this.showTopBar = true,
     this.surahNames,
+    this.surahAyahCounts,
     this.onTasmee,
   });
 
@@ -155,9 +160,11 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
               builder: (context, snap) {
                 final fontReady = snap.data ?? false;
                 if (lines.isEmpty) return const SizedBox.shrink();
-                // Lines stretch (Expanded); a surah-start banner + Basmala are
-                // inserted as fixed-height blocks before the line that begins a
-                // new surah.
+                // Case B: the opening page of Al-Fatiha / Al-Baqarah uses the
+                // full-page ornate frame (name + ayah-count cartouches).
+                final frameSurah = _fullFrameSurah();
+                // Lines stretch (Expanded); for a normal surah start an inline
+                // transition banner + Basmala are inserted before its first line.
                 final children = <Widget>[];
                 for (final line in lines) {
                   final first = _firstOf[line];
@@ -165,7 +172,11 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
                       first.type == 'word' &&
                       first.ayah == 1 &&
                       _isFirstWord(first)) {
-                    children.add(_surahBanner(first.surah));
+                    // The full-frame surah's name shows in the frame's top
+                    // cartouche, so skip its inline banner.
+                    if (frameSurah != first.surah) {
+                      children.add(_surahBanner(first.surah));
+                    }
                     if (first.surah != 1 && first.surah != 9) {
                       children.add(_basmala());
                     }
@@ -175,7 +186,16 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
                   children.add(Expanded(
                       child: RepaintBoundary(child: _line(line, fontReady))));
                 }
-                return Column(children: children);
+                final body = Column(children: children);
+                if (frameSurah != null) {
+                  final name =
+                      widget.surahNames?[frameSurah] ?? 'سورة $frameSurah';
+                  final count = widget.surahAyahCounts?[frameSurah] ??
+                      (frameSurah == 1 ? 7 : 286);
+                  return SurahFramePage(
+                      name: name, ayahCount: count, content: body);
+                }
+                return body;
               },
             ),
           ),
@@ -208,10 +228,13 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
           final natural = _lineSum10(line, glyphs, fontReady) * fs / _refFs;
           // Always derive fs from the fit ratio (×0.97 safety), so even a line
           // whose natural width is just under budget can't overflow from
-          // measurement-vs-layout rounding. No lower clamp.
+          // measurement-vs-layout rounding. The floor is tiny (not 1.0) so a
+          // very dense line in a very narrow box (e.g. inside the full-page
+          // frame's inset content area) still shrinks to fit instead of
+          // overflowing — real pages never approach it.
           if (natural > 0) {
             final ratio = (budget / natural) * 0.97;
-            if (ratio < 1) fs = (fs * ratio).clamp(1.0, c.maxHeight);
+            if (ratio < 1) fs = (fs * ratio).clamp(0.1, c.maxHeight);
           }
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -327,19 +350,41 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
   // wordId is "<surah>:<ayah>:<wordIndex>"; surah start = ayah 1, word 1.
   bool _isFirstWord(PageGlyph g) => g.wordId?.endsWith(':1') ?? false;
 
+  /// If this page opens Al-Fatiha (1) or Al-Baqarah (2), return that surah id —
+  /// these get the full-page ornate frame (Case B). Otherwise null.
+  int? _fullFrameSurah() {
+    for (final line in _lines) {
+      final f = _firstOf[line];
+      if (f != null &&
+          f.type == 'word' &&
+          f.ayah == 1 &&
+          _isFirstWord(f) &&
+          (f.surah == 1 || f.surah == 2)) {
+        return f.surah;
+      }
+    }
+    return null;
+  }
+
   Widget _surahBanner(int surah) {
     final name = widget.surahNames?[surah] ?? 'سورة $surah';
     return SurahBanner(name: name);
   }
 
   Widget _basmala() {
+    // Rendered in the authentic mushaf Naskh (KFGQPC Uthman Taha Naskh) so it
+    // matches the page text rather than the UI font.
     return const Padding(
       padding: EdgeInsets.only(bottom: 4),
-      child: Text(
-        'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
-        textAlign: TextAlign.center,
-        textScaler: TextScaler.noScaling,
-        style: TextStyle(color: _kInk, fontSize: 18),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+          textAlign: TextAlign.center,
+          textScaler: TextScaler.noScaling,
+          style: TextStyle(
+              color: _kInk, fontSize: 22, fontFamily: kUthmanNaskh, height: 1.0),
+        ),
       ),
     );
   }

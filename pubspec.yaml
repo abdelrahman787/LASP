@@ -64,3 +64,10 @@ flutter:
           weight: 600
         - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
           weight: 700
+    # KFGQPC Uthman Taha Naskh (King Fahd Complex, same source as the QCF page
+    # fonts) — authentic mushaf Naskh for surah names, ayah counts, and Basmala.
+    - family: KFGQPC Uthman Taha Naskh
+      fonts:
+        - asset: assets/fonts/UthmanTahaNaskh-Regular.ttf
+        - asset: assets/fonts/UthmanTahaNaskh-Bold.ttf
+          weight: 700
