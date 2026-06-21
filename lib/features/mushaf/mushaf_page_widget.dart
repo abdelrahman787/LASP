@@ -38,6 +38,12 @@ class MushafPageWidget extends StatefulWidget {
   /// recitation session, already provides an AppBar — avoids a duplicate).
   final bool showTopBar;
 
+  /// When false (read-only reader), glyphs render via a lightweight static path
+  /// with no per-word reveal machinery (no AnimatedBuilder/placeholder/key) —
+  /// far cheaper to build per page, so swiping stays smooth. Recitation sets
+  /// this true so words can hide/reveal and the cursor can highlight.
+  final bool interactive;
+
   /// surah id → Arabic name, for the surah-start banner (optional).
   final Map<int, String>? surahNames;
 
@@ -60,6 +66,7 @@ class MushafPageWidget extends StatefulWidget {
     this.onHome,
     this.onBookmark,
     this.showTopBar = true,
+    this.interactive = true,
     this.surahNames,
     this.surahAyahCounts,
     this.onTasmee,
@@ -263,6 +270,29 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
 
   Widget _glyph(PageGlyph g, double fontSize, bool fontReady) {
     final usePageFont = g.isCodeV2 && fontReady;
+    final fam = usePageFont ? PageFontLoader.family(widget.pageNumber) : null;
+
+    // Read-only fast path (reader, not recitation): every word is permanently
+    // visible, so skip the per-glyph AnimatedBuilder + Stack + placeholder +
+    // GlobalKey entirely. That removes ~3 widgets × ~150 glyphs and ~150
+    // controller listeners per page — the bulk of the page-swipe BUILD cost.
+    if (!widget.interactive) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 1),
+        child: Text(
+          g.text,
+          textAlign: TextAlign.center,
+          textScaler: TextScaler.noScaling,
+          style: TextStyle(
+            fontFamily: fam,
+            fontSize: fontSize,
+            color: _kInk,
+            height: 1.0,
+          ),
+        ),
+      );
+    }
+
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {

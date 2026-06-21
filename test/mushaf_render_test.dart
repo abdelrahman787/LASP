@@ -82,6 +82,37 @@ void main() {
     expect(rect.height, greaterThan(0));
   });
 
+  testWidgets('read-only path (interactive:false) drops the per-glyph reveal '
+      'machinery but still renders every word', (tester) async {
+    Widget page(bool interactive) => MaterialApp(
+          home: Scaffold(
+            body: MushafPageWidget(
+              pageNumber: 1,
+              glyphs: sampleGlyphs(),
+              controller: MushafPageController()..showAllWords([0, 1, 2, 3]),
+              showTopBar: false,
+              interactive: interactive,
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(page(true));
+    await tester.pumpAndSettle();
+    final interactiveBuilders =
+        find.byType(AnimatedBuilder).evaluate().length;
+
+    await tester.pumpWidget(page(false));
+    await tester.pumpAndSettle();
+    final staticBuilders = find.byType(AnimatedBuilder).evaluate().length;
+
+    // Words still render in the static path...
+    expect(find.text('بِسْمِ'), findsOneWidget);
+    expect(find.text('ٱلْحَمْدُ'), findsOneWidget);
+    // ...with strictly fewer AnimatedBuilders (one per glyph removed) — the
+    // page-swipe build-cost reduction.
+    expect(staticBuilders, lessThan(interactiveBuilders));
+  });
+
   testWidgets('a dense line in a narrow width does not overflow', (tester) async {
     // Many words on one line → the old spaceBetween + height-derived font size
     // overflowed horizontally. The per-line measure-and-shrink must prevent it.

@@ -304,7 +304,7 @@ const double _kVadThreshold = 0.5;
 /// "no results at all" freeze). Set comfortably above [_kMaxSpeechDuration],
 /// which force-ends a segment every 5s of continuous speech, so this only trips
 /// on a genuinely stuck VAD, not normal recitation.
-const double _kVadWatchdogSeconds = 9.0;
+const double _kVadWatchdogSeconds = 7.0;
 
 /// Seconds of audio carried from the END of one VAD segment into the START of
 /// the next before recognition. A word clipped at a segment boundary (natural

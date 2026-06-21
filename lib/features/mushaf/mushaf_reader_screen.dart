@@ -198,6 +198,7 @@ class _ReaderPageState extends ConsumerState<_ReaderPage>
       juz: _juz,
       surahNames: _surahNames,
       showTopBar: false, // the reader Scaffold provides the single top bar
+      interactive: false, // read-only: use the lightweight static glyph path
       onTasmee: () => Navigator.of(context).push(
         MaterialPageRoute(
             builder: (_) => RecitationScreen(pageNumber: widget.pageNumber)),
