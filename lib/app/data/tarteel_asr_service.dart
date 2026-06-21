@@ -105,6 +105,13 @@ class TarteelOnDeviceAsrService implements AsrService {
                 _onResult?.call(AsrResult(text, text.isEmpty ? 0 : 0.9));
               }
               break;
+            case 'watchdog':
+              // The "complete freeze" recovery: VAD wedged, auto-flushed.
+              dlog('⚠️ VAD WATCHDOG — no segment for ${msg['secs']}s of audio; '
+                  'forced flush+drain to recover (same as pause/resume). '
+                  'If you saw recitation freeze with no "tarteel result", this '
+                  'is it self-healing.');
+              break;
             case 'counts':
               _finalizing = false; // finalize results have all arrived by now
               // Session-end capture audit. micSamples = everything the mic gave
@@ -291,6 +298,14 @@ const double _kMaxSpeechDuration = 5.0; // Test D: was 7.0 (cap worst-case wait)
 const double _kMinSilenceDuration = 0.45;
 const double _kVadThreshold = 0.5;
 
+/// Watchdog: if this many seconds of audio arrive without the VAD ever ending a
+/// segment, assume it's wedged and force a flush+drain — the same recovery that
+/// pause/resume performs (which the field report confirmed un-sticks the
+/// "no results at all" freeze). Set comfortably above [_kMaxSpeechDuration],
+/// which force-ends a segment every 5s of continuous speech, so this only trips
+/// on a genuinely stuck VAD, not normal recitation.
+const double _kVadWatchdogSeconds = 9.0;
+
 /// Seconds of audio carried from the END of one VAD segment into the START of
 /// the next before recognition. A word clipped at a segment boundary (natural
 /// silence OR a `maxSpeechDuration` force-cut) then appears whole in at least
@@ -364,6 +379,9 @@ void _workerMain(_AsrInit init) {
 
   // Capture audit: every sample fed into the VAD this session.
   var vadSamples = 0;
+  // Watchdog: samples received since the VAD last ended a segment.
+  var samplesSinceSegment = 0;
+  final watchdogSamples = (_kVadWatchdogSeconds * sampleRate).round();
   // Boundary overlap: tail of the previously-decoded segment.
   final overlapLen = (_kSegmentOverlap * sampleRate).round();
   Float32List? prevTail;
@@ -372,6 +390,7 @@ void _workerMain(_AsrInit init) {
     while (!vad.isEmpty()) {
       final seg = vad.front();
       vad.pop();
+      samplesSinceSegment = 0; // a segment ended → the VAD is alive
 
       // Prepend the previous segment's tail so a word split at the boundary is
       // intact here too. `decoded` is what we hand the recognizer; `seg.samples`
@@ -424,8 +443,23 @@ void _workerMain(_AsrInit init) {
     if (msg is Uint8List) {
       final f = toFloat(msg);
       vadSamples += f.length; // count BEFORE accepting — proof of processing
+      samplesSinceSegment += f.length;
       vad.acceptWaveform(f);
       drainVad();
+      // Watchdog: audio kept flowing but no segment ended for too long → the VAD
+      // is likely wedged. Recover like pause/resume does (flush + drain).
+      if (samplesSinceSegment >= watchdogSamples) {
+        init.toMain.send({
+          'type': 'watchdog',
+          'secs': (samplesSinceSegment / sampleRate).toStringAsFixed(1),
+        });
+        try {
+          vad.flush();
+        } catch (_) {}
+        drainVad();
+        samplesSinceSegment = 0;
+        prevTail = null; // start clean after a forced recovery
+      }
     } else if (msg == 'reset') {
       try {
         vad.flush();
@@ -434,6 +468,7 @@ void _workerMain(_AsrInit init) {
         }
       } catch (_) {}
       prevTail = null; // don't bleed overlap across a flush/new session
+      samplesSinceSegment = 0;
     } else if (msg == 'finalize') {
       // End of session: force any buffered speech into a final segment and
       // decode it so the last words are never lost.

@@ -181,29 +181,69 @@ void main() {
   });
 
   group('attempt ladder (substitution)', () {
-    test('attempt 1 transient (no log), 2 soft, 3+ confirmed', () {
-      c = build(mode: RecitationConfig.strict);
+    test('substitution logged from attempt 1 (soft), 2 soft, 3+ confirmed', () {
+      // reanchorThreshold 0 so the 3rd stuck attempt doesn't try to re-anchor
+      // (we want to observe the ladder reaching confirmed).
+      c = build(mode: RecitationConfig.strict, reanchorThreshold: 0);
       c.start();
       // Wrong word at cursor 0 that matches nothing ahead → substitution.
       const wrong = AsrResult('زقمون', 0.9);
 
-      c.submitAsr(wrong); // attempt 1
-      expect(logger.errors, isEmpty, reason: 'attempt 1 is transient');
-      expect(c.lastError!.severity, ErrorSeverity.transient);
+      c.submitAsr(wrong); // attempt 1 → soft (a lone substitution is logged)
+      expect(logger.errors.length, 1, reason: 'substitution logged on first try');
+      expect(logger.errors.last.severity, ErrorSeverity.soft);
+      expect(logger.errors.last.errorType, ErrorType.substitution);
       expect(c.attemptCounts['1:1:1'], 1);
 
       c.submitAsr(wrong); // attempt 2 → soft
-      expect(logger.errors.length, 1);
+      expect(logger.errors.length, 2);
       expect(logger.errors.last.severity, ErrorSeverity.soft);
-      expect(logger.errors.last.errorType, ErrorType.substitution);
       expect(logger.errors.last.attempts, 2);
 
       c.submitAsr(wrong); // attempt 3 → confirmed
-      expect(logger.errors.length, 2);
+      expect(logger.errors.length, 3);
       expect(logger.errors.last.severity, ErrorSeverity.confirmed);
       expect(logger.errors.last.attempts, 3);
 
       expect(c.cursor, 0, reason: 'errors never advance the cursor');
+    });
+
+    test('a single substitution appears in the report (not dropped)', () {
+      // The device repro: one clearly-wrong word, normal flow, no re-anchor.
+      c = build(reanchorThreshold: 0);
+      c.start();
+      // Recite ayah 1 words 0,1 correctly, then a wrong word at cursor 2.
+      c.submitAsr(const AsrResult('بسم الله', 0.95)); // reveals 0,1
+      expect(c.cursor, 2);
+      c.submitAsr(const AsrResult('زقمون', 0.95)); // wrong in place of الرحمن
+      final report =
+          buildSessionReport(scope: fatihaScope(), errors: logger.errors);
+      expect(report.substitutions.map((e) => e.wordId), contains('1:1:3'),
+          reason: 'a lone substitution must be classified, not silently dropped');
+    });
+
+    test('substitution survives a later re-anchor (not masked as asrLag/order)',
+        () {
+      // Device repro: substitute a word, then keep reciting ahead → re-anchor.
+      // The substituted word must still be a SUBSTITUTION in the report.
+      c = build(); // reanchorThreshold 3
+      c.start();
+      c.submitAsr(const AsrResult('بسم الله', 0.95)); // reveal 0,1; cursor 2
+      c.submitAsr(const AsrResult('اللعين', 0.95)); // wrong @2 (الرحمن) → subst
+      // Now recite ahead (ayah 2 start: indices 4,5,6) while stuck at cursor 2.
+      const ahead = AsrResult('الحمد لله رب', 0.95);
+      c.submitAsr(ahead); // order noise @2 (suppressed, keeps substitution)
+      c.submitAsr(ahead); // 3rd stuck → re-anchor forward, sweeps [2,3]
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isTrue);
+
+      final report =
+          buildSessionReport(scope: fatihaScope(), errors: logger.errors);
+      expect(report.substitutions.map((e) => e.wordId), contains('1:1:3'),
+          reason: 'substituted word stays a substitution, not asrLag/order');
+      expect(report.asrLag.map((e) => e.wordId), isNot(contains('1:1:3')));
+      // The genuinely-skipped neighbour (الرحيم) is asrLag.
+      expect(report.asrLag.map((e) => e.wordId), contains('1:1:4'));
     });
 
     test('order error is classified and laddered', () {
@@ -399,6 +439,40 @@ void main() {
       // A success resets the counter.
       c.submitAsr(const AsrResult('بسم', 0.95));
       expect(c.consecutiveAsrFailures, 0);
+    });
+  });
+
+  group('silent-stall diagnostic (#1)', () {
+    test('N consecutive no-progress / no-error utterances emit silentStall', () {
+      c = build(reanchorThreshold: 0); // isolate from re-anchor
+      c.start();
+      // Context-replay of an already-accepted word makes no progress and logs
+      // no error — the silent non-progress case.
+      c.submitAsr(const AsrResult('بسم', 0.95)); // real progress: reveal 0
+      expect(c.cursor, 1);
+      // Re-reciting the accepted word 0 repeatedly = pure replay, no progress.
+      for (var i = 0; i < kSilentStallThreshold; i++) {
+        expect(c.events.any((e) => e.type == RecitationEventType.silentStall),
+            isFalse,
+            reason: 'not yet at the threshold (iteration $i)');
+        c.submitAsr(const AsrResult('بسم', 0.95));
+      }
+      expect(c.events.any((e) => e.type == RecitationEventType.silentStall),
+          isTrue, reason: 'fires once the threshold is reached');
+    });
+
+    test('progress or a logged error resets the silent-stall counter', () {
+      c = build(reanchorThreshold: 0);
+      c.start();
+      c.submitAsr(const AsrResult('بسم', 0.95)); // reveal 0, cursor 1
+      // A few pure-replay no-ops (below threshold)...
+      c.submitAsr(const AsrResult('بسم', 0.95));
+      c.submitAsr(const AsrResult('بسم', 0.95));
+      // ...then real progress resets the run.
+      c.submitAsr(const AsrResult('الله', 0.95)); // reveal 1, cursor 2
+      c.submitAsr(const AsrResult('بسم الله', 0.95)); // replay, no progress
+      expect(c.events.any((e) => e.type == RecitationEventType.silentStall),
+          isFalse, reason: 'counter was reset by the real progress');
     });
   });
 

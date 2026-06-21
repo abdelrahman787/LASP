@@ -226,6 +226,23 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               duration: Duration(seconds: 2)),
         );
       }
+      // Hard evidence for the "complete freeze" report: many consecutive
+      // utterances that neither advanced the cursor nor logged any error.
+      final stall = fresh
+          .where((e) => e.type == RecitationEventType.silentStall)
+          .lastOrNull;
+      if (stall != null) {
+        final pos = _controller.cursor < _scope.length
+            ? _scope[_controller.cursor].wordId
+            : '(end)';
+        dlog('⚠️ SILENT STALL — $kSilentStallThreshold+ utterances with no '
+            'progress and no error. cursor=${_controller.cursor} word=$pos '
+            'status=${_controller.status.name} '
+            'consecutiveStuck=${_controller.consecutiveStuck} '
+            'asrFailures=${_controller.consecutiveAsrFailures}. '
+            'If recitation appears frozen here, this is the engine-side stall; '
+            'a worker-side stall instead shows NO "tarteel result" lines.');
+      }
     }
     setState(() {});
     if (_controller.status == RecitationStatus.completed) _finish();

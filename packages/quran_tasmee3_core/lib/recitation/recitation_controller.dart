@@ -31,6 +31,12 @@ const int kSilenceForgetMs = 10000;
 /// Consecutive ASR failures before an "audio unclear" hint (spec Phase 2).
 const int kAsrUnclearThreshold = 3;
 
+/// Consecutive `submitAsr` calls with zero cursor advancement AND zero newly
+/// logged error before a `silentStall` diagnostic fires. This is the SILENT
+/// non-progress case (e.g. every utterance fully absorbed as context replay) —
+/// distinct from the known stuck→re-anchor path, which DOES log forgets/asrLag.
+const int kSilentStallThreshold = 5;
+
 /// A logged mistake, matching the Firestore `errors` document shape (Phase 5):
 /// `{ wordId, expectedText, recognizedText, errorType, confidence, attempts,
 /// manualReveal, createdAt }`, plus a [severity] for the report layer.
@@ -84,6 +90,11 @@ enum RecitationEventType {
   asrUnclear,
   reanchored,
   completed,
+
+  /// Diagnostic: many consecutive utterances made zero progress and logged zero
+  /// errors — a silent stall (see [kSilentStallThreshold]). The UI logs this so
+  /// the freeze can be captured with hard evidence.
+  silentStall,
 }
 
 class RecitationEvent {
@@ -148,6 +159,20 @@ class RecitationController {
   int _consecutiveStuck = 0; // non-advancing errored utterances at this cursor
   final List<RecitationEvent> events = [];
 
+  /// Words classified as a SUBSTITUTION (genuine wrong word) at any attempt
+  /// level. Used so a later re-anchor doesn't mask a real substitution as
+  /// `asrLag` (which would exclude it from scoring). Cleared when the word is
+  /// eventually recited/accepted.
+  final Set<String> _substitutedWords = {};
+
+  /// Count of errors handed to [logger] this session — lets the silent-stall
+  /// detector tell "nothing was logged" apart from "an error was logged",
+  /// without coupling to the external logger implementation.
+  int _loggedCount = 0;
+
+  /// Consecutive [submitAsr] calls with no advance AND no newly logged error.
+  int _silentNoProgress = 0;
+
   // --- read-only accessors --------------------------------------------------
   RecitationStatus get status => _status;
   int get cursor => _cursor;
@@ -204,6 +229,26 @@ class RecitationController {
         _status == RecitationStatus.paused) {
       return;
     }
+    // Silent-stall detection (diagnostic): a healthy utterance either advances
+    // the cursor or logs an error. If many in a row do NEITHER (e.g. every
+    // utterance fully absorbed as context replay, or a run of ASR non-results),
+    // that's a silent freeze — emit a diagnostic so the UI can capture it.
+    final cursorBefore = _cursor;
+    final loggedBefore = _loggedCount;
+    _processUtterance(r);
+    final progressed = _cursor != cursorBefore;
+    final logged = _loggedCount != loggedBefore;
+    if (!progressed && !logged && _status != RecitationStatus.completed) {
+      if (++_silentNoProgress >= kSilentStallThreshold) {
+        _emit(RecitationEventType.silentStall, _cursor);
+        _silentNoProgress = 0; // re-arm so a persistent stall keeps reporting
+      }
+    } else {
+      _silentNoProgress = 0;
+    }
+  }
+
+  void _processUtterance(AsrResult r) {
     _status = RecitationStatus.matching;
 
     // ASR failure: empty/whitespace text or confidence 0 → silent non-result.
@@ -241,6 +286,7 @@ class RecitationController {
       for (final i in result.acceptedWordIndices) {
         if (!_revealedIndices.contains(i)) _revealedIndices.add(i);
         _acceptedHistory.add(i);
+        _substitutedWords.remove(scope[i].wordId); // recited correctly now
         onReveal?.call(i);
         _emit(RecitationEventType.reveal, i);
       }
@@ -255,7 +301,7 @@ class RecitationController {
 
     // Pronunciation flags: accepted but low-confidence → log as a flag.
     for (final i in result.pronunciationFlaggedIndices) {
-      logger.record(RecordedError(
+      _log(RecordedError(
         wordId: scope[i].wordId,
         expectedText: _expectedText(i),
         recognizedText: null,
@@ -333,12 +379,17 @@ class RecitationController {
     // match), so the mushaf fills in instead of leaving a wall of gray pills
     // that contradicts the report.
     for (var i = oldCursor; i < anchor.startIndex && i < scope.length; i++) {
-      if (!_revealedIndices.contains(i)) {
+      if (_revealedIndices.contains(i)) continue;
+      // A word the reciter actively said WRONG (a real substitution, already
+      // logged by the ladder) must NOT be downgraded to asrLag — that would
+      // exclude a genuine mistake from scoring. Leave its substitution on record
+      // and just reveal it. Everything else in the gap is a true ASR-lag skip.
+      if (!_substitutedWords.contains(scope[i].wordId)) {
         _recordAsrLag(i);
-        _revealedIndices.add(i);
-        onReveal?.call(i);
-        _emit(RecitationEventType.reveal, i);
       }
+      _revealedIndices.add(i);
+      onReveal?.call(i);
+      _emit(RecitationEventType.reveal, i);
     }
 
     // Reveal the matched run at the anchor and jump the cursor there.
@@ -374,7 +425,7 @@ class RecitationController {
   void _handleError(RecitationError err, double confidence) {
     // `addition` is not part of the ladder — record it directly (confirmed).
     if (err.type == ErrorType.addition) {
-      logger.record(RecordedError(
+      _log(RecordedError(
         wordId: err.expectedIndex < scope.length
             ? scope[err.expectedIndex].wordId
             : (scope.isEmpty ? '' : scope.last.wordId),
@@ -390,29 +441,42 @@ class RecitationController {
       return;
     }
 
+    // If the reciter already SUBSTITUTED this word and is now reciting ahead,
+    // the resulting `order` errors at this cursor are just navigation noise —
+    // don't let them override the substitution as the word's classification.
+    // (The stuck count in submitAsr still drives the eventual re-anchor.)
+    if (err.type == ErrorType.order &&
+        _substitutedWords.contains(scope[err.expectedIndex].wordId)) {
+      _status = RecitationStatus.error;
+      return;
+    }
+
     // substitution / order → attempt ladder, keyed by the stopping word.
     final wordId = scope[err.expectedIndex].wordId;
     final n = (_attemptCounts[wordId] ?? 0) + 1;
     _attemptCounts[wordId] = n;
     _status = RecitationStatus.error;
 
-    if (n == 1) {
-      // Attempt 1: transient — record nothing persistent.
-      _lastError = RecordedError(
-        wordId: wordId,
-        expectedText: _expectedText(err.expectedIndex),
-        recognizedText: err.recognizedToken,
-        errorType: err.type,
-        confidence: confidence,
-        attempts: 1,
-        manualReveal: false,
-        severity: ErrorSeverity.transient,
-        createdAt: now(),
-      );
-      return;
+    // A substitution is a genuine wrong word (high signal): remember it so a
+    // later re-anchor can't mask it as `asrLag`, and record it from the FIRST
+    // occurrence (soft) so a single mistake is never silently dropped from the
+    // report. Order errors keep the transient-first ladder — attempt 1 is often
+    // a skip-ahead / ASR artifact that the re-anchor path handles instead.
+    if (err.type == ErrorType.substitution) {
+      _substitutedWords.add(wordId);
     }
 
-    final severity = n == 2 ? ErrorSeverity.soft : ErrorSeverity.confirmed;
+    final ErrorSeverity severity;
+    if (n >= 3) {
+      severity = ErrorSeverity.confirmed;
+    } else if (n == 2) {
+      severity = ErrorSeverity.soft;
+    } else {
+      severity = err.type == ErrorType.substitution
+          ? ErrorSeverity.soft // log a lone substitution
+          : ErrorSeverity.transient; // order attempt 1: informational only
+    }
+
     final rec = RecordedError(
       wordId: wordId,
       expectedText: _expectedText(err.expectedIndex),
@@ -425,7 +489,7 @@ class RecitationController {
       createdAt: now(),
     );
     _lastError = rec;
-    logger.record(rec);
+    if (severity != ErrorSeverity.transient) _log(rec);
   }
 
   // --- silence timers (spec Phase 3, step 2) --------------------------------
@@ -502,8 +566,15 @@ class RecitationController {
     }
   }
 
+  /// Single funnel for every persisted error — keeps [_loggedCount] accurate so
+  /// the silent-stall detector knows whether THIS utterance logged anything.
+  void _log(RecordedError e) {
+    _loggedCount++;
+    logger.record(e);
+  }
+
   void _recordForget(int index, {required bool manualReveal}) {
-    logger.record(RecordedError(
+    _log(RecordedError(
       wordId: scope[index].wordId,
       expectedText: _expectedText(index),
       recognizedText: null,
@@ -523,7 +594,7 @@ class RecitationController {
   /// [_recordForget] (severity `confirmed` so the dedup/report layer treats it
   /// as a final, non-transient classification for the word).
   void _recordAsrLag(int index) {
-    logger.record(RecordedError(
+    _log(RecordedError(
       wordId: scope[index].wordId,
       expectedText: _expectedText(index),
       recognizedText: null,

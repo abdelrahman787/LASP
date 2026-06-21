@@ -150,6 +150,28 @@ void main() {
       expect(r.error!.expectedIndex, 0);
     });
 
+    test('one wrong word mid-utterance → prefix accepted, substitution flagged',
+        () {
+      // Otherwise-normal flow: "بسم الله <wrong> الرحيم". The first two words
+      // accept, then a clearly-wrong word in place of الرحمن must be classified
+      // as a substitution — not silently absorbed/dropped.
+      final scope = scopeFromWords(
+        ['بسم', 'الله', 'الرحمن', 'الرحيم'].map(normalizeForMatch).toList(),
+      );
+      final r = matchUtterance(
+        scope: scope,
+        cursor: 0,
+        recognizedTokens: recite('بسم الله زقمون الرحيم'),
+        confidence: 0.95,
+        mode: RecitationConfig.normal,
+        acceptedHistory: const [],
+      );
+      expect(r.acceptedWordIndices, equals([0, 1]), reason: 'prefix accepted');
+      expect(r.error, isNotNull);
+      expect(r.error!.type, ErrorType.substitution);
+      expect(r.error!.expectedIndex, 2, reason: 'stopped at the wrong word');
+    });
+
     test('pronunciation: within threshold but low confidence in strict → '
         'accepted + flagged, not rejected', () {
       // A short madd/tajweed variant that stays within strict levThreshold.
