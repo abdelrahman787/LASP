@@ -22,7 +22,9 @@ String easternDigits(int n) {
 /// Arabic grammar: counts 3–10 take the plural "آيات", otherwise "آية".
 String surahAyahCountLabel(int count) {
   final noun = (count >= 3 && count <= 10) ? 'آيات' : 'آية';
-  return 'وهي ﴾${easternDigits(count)}﴿ $noun';
+  // Logical order: ﴿ (U+FD3E) then number then ﴾ (U+FD3F) — renders with the
+  // ornaments correctly enclosing the numeral under RTL shaping.
+  return 'وهي ﴿${easternDigits(count)}﴾ $noun';
 }
 
 Widget _cartoucheText(String text, {String? fontFamily, FontWeight? weight}) {
