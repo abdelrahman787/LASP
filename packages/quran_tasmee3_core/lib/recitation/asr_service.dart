@@ -38,6 +38,11 @@ abstract class AsrService {
   /// Resume after [pause].
   Future<void> resume() async {}
 
+  /// Flush internal ASR state (e.g. VAD/decoder buffers) WITHOUT pausing the
+  /// mic — the automated stuck-recovery (no captured audio is dropped).
+  /// Default no-op for fakes/cloud backends with no such state.
+  Future<void> flush() async {}
+
   /// Stop capturing (ends the session).
   Future<void> stop();
 }
@@ -61,6 +66,9 @@ class FakeAsrService implements AsrService {
 
   @override
   Future<void> resume() async {}
+
+  @override
+  Future<void> flush() async {}
 
   @override
   Future<void> stop() async {

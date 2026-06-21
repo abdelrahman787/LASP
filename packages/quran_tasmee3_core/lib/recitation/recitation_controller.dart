@@ -37,6 +37,11 @@ const int kAsrUnclearThreshold = 3;
 /// distinct from the known stuck→re-anchor path, which DOES log forgets/asrLag.
 const int kSilentStallThreshold = 5;
 
+/// When the reciter is stuck for `reanchorThreshold × this` non-advancing
+/// attempts AND re-anchor can't recover (garbled ASR aligning nowhere), the
+/// controller asks the ASR layer to flush — the automated pause/resume recovery.
+const int kAsrResetStuckMultiplier = 2;
+
 /// A logged mistake, matching the Firestore `errors` document shape (Phase 5):
 /// `{ wordId, expectedText, recognizedText, errorType, confidence, attempts,
 /// manualReveal, createdAt }`, plus a [severity] for the report layer.
@@ -95,6 +100,10 @@ enum RecitationEventType {
   /// errors — a silent stall (see [kSilentStallThreshold]). The UI logs this so
   /// the freeze can be captured with hard evidence.
   silentStall,
+
+  /// The reciter is stuck and re-anchor can't recover; the UI should flush the
+  /// ASR (VAD/decoder reset) — automated pause/resume recovery (no mic pause).
+  requestAsrReset,
 }
 
 class RecitationEvent {
@@ -330,6 +339,16 @@ class RecitationController {
           }
           _status = RecitationStatus.listening;
           return;
+        }
+        // Re-anchor couldn't recover (e.g. the ASR is returning garbled text
+        // that aligns nowhere). After a longer run, ask the ASR layer to flush
+        // its VAD/decoder state — the automated equivalent of the manual
+        // pause/resume the user found un-sticks this. Flush is VAD-only (no mic
+        // pause) so it doesn't drop captured audio. Re-arm afterwards.
+        if (reanchorThreshold > 0 &&
+            _consecutiveStuck >= reanchorThreshold * kAsrResetStuckMultiplier) {
+          _emit(RecitationEventType.requestAsrReset, _cursor);
+          _consecutiveStuck = 0;
         }
       } else {
         // Partial advance then stop → progress was made; reset stuck.

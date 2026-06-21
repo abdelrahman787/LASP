@@ -27,6 +27,10 @@ class MushafPageWidget extends StatefulWidget {
   /// Glyph position to highlight as the recitation cursor (optional).
   final int? currentPosition;
 
+  /// Glyph position to briefly flash red (a just-confirmed substitution), so the
+  /// student sees the mistake in the moment. Optional.
+  final int? flashPosition;
+
   /// Chrome.
   final String surahName;
   final int? juz;
@@ -60,6 +64,7 @@ class MushafPageWidget extends StatefulWidget {
     required this.glyphs,
     required this.controller,
     this.currentPosition,
+    this.flashPosition,
     this.surahName = '',
     this.juz,
     this.hizb,
@@ -132,21 +137,52 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
     _lines = _byLine.keys.toList()..sort();
   }
 
-  /// Summed glyph width for [line] at [_refFs], measured once and cached. The
-  /// cache auto-invalidates when [fontReady] flips (the real page font changes
-  /// glyph metrics vs. the fallback font).
+  /// Natural width for [line] at [_refFs], measured once and cached. The cache
+  /// auto-invalidates when [fontReady] flips (the real page font changes glyph
+  /// metrics vs. the fallback font). In the read-only path the WHOLE line is
+  /// measured with a single TextPainter (one layout) instead of one per glyph —
+  /// the page-swipe BUILD cost (cold per-page font × ~150 layouts) was the
+  /// profiled bottleneck.
   double _lineSum10(int line, List<PageGlyph> glyphs, bool fontReady) {
     if (_sum10For != fontReady) {
       _sum10.clear();
       _sum10For = fontReady;
     }
     return _sum10[line] ??= () {
+      if (!widget.interactive) {
+        return _measureText(_lineText(glyphs), _lineFamily(glyphs, fontReady));
+      }
       var sum = 0.0;
       for (final g in glyphs) {
         sum += _measureGlyph(g, _refFs, fontReady);
       }
       return sum;
     }();
+  }
+
+  /// The concatenated mushaf line. QCF V2 word-glyphs are designed to compose a
+  /// full, correctly-spaced line, so they join with no separator; the (rare)
+  /// fallback to plain Uthmani text joins with a space.
+  String _lineText(List<PageGlyph> glyphs) {
+    final allCode = glyphs.every((g) => g.isCodeV2);
+    return glyphs.map((g) => g.text).join(allCode ? '' : ' ');
+  }
+
+  String? _lineFamily(List<PageGlyph> glyphs, bool fontReady) {
+    final allCode = glyphs.every((g) => g.isCodeV2);
+    return (allCode && fontReady) ? PageFontLoader.family(widget.pageNumber) : null;
+  }
+
+  double _measureText(String text, String? family) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(fontFamily: family, fontSize: _refFs, height: 1.0),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout();
+    return tp.width;
   }
 
   @override
@@ -215,6 +251,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
   Widget _line(int line, bool fontReady) {
     final glyphs = _byLine[line];
     if (glyphs == null || glyphs.isEmpty) return const SizedBox.shrink();
+    if (!widget.interactive) return _staticLine(line, glyphs, fontReady);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -247,6 +284,45 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [for (final g in glyphs) _glyph(g, fs, fontReady)],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Read-only line: the whole line as ONE [Text] (one layout), sized to fill
+  /// the width. QCF V2 word-glyphs compose a full, correctly-spaced line by
+  /// design, so this is both faithful to the printed mushaf AND ~10× cheaper to
+  /// lay out than the per-glyph Row (no reveal/wordRect needed when reading).
+  Widget _staticLine(int line, List<PageGlyph> glyphs, bool fontReady) {
+    final text = _lineText(glyphs);
+    final fam = _lineFamily(glyphs, fontReady);
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final maxFs = (c.maxHeight * 0.6).clamp(10.0, 40.0);
+          final budget = (c.maxWidth - 4).clamp(1.0, c.maxWidth);
+          final natural10 = _lineSum10(line, glyphs, fontReady);
+          var fs = maxFs;
+          if (natural10 > 0) {
+            // Size to fill the width (×0.99 safety), capped by the line height.
+            final fitFs = budget / natural10 * _refFs * 0.99;
+            fs = (fitFs < maxFs ? fitFs : maxFs).clamp(0.1, c.maxHeight);
+          }
+          return Center(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              textScaler: TextScaler.noScaling,
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: fam,
+                fontSize: fs,
+                color: _kInk,
+                height: 1.0,
+              ),
+            ),
           );
         },
       ),
@@ -298,6 +374,7 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
       builder: (context, _) {
         final visible = widget.controller.isVisible(g.positionInPage);
         final isCursor = g.positionInPage == widget.currentPosition;
+        final isFlash = g.positionInPage == widget.flashPosition;
         // The glyph slot always reserves the word's natural size (keyed for
         // wordRect). The Text stays laid out even when hidden so the
         // placeholder pill matches the REAL per-word dimensions (correction #7)
@@ -305,12 +382,20 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
         return Container(
           key: widget.controller.keyFor(g.positionInPage),
           padding: const EdgeInsets.symmetric(horizontal: 1),
-          decoration: isCursor
+          // A just-confirmed substitution flashes red (overrides the cursor
+          // outline for the moment) so the mistake is visible in real time.
+          decoration: isFlash
               ? BoxDecoration(
-                  border: Border.all(color: _kAccent, width: 1.5),
+                  color: const Color(0x33D32F2F),
+                  border: Border.all(color: const Color(0xFFD32F2F), width: 1.5),
                   borderRadius: BorderRadius.circular(4),
                 )
-              : null,
+              : isCursor
+                  ? BoxDecoration(
+                      border: Border.all(color: _kAccent, width: 1.5),
+                      borderRadius: BorderRadius.circular(4),
+                    )
+                  : null,
           child: Stack(
             alignment: Alignment.center,
             children: [

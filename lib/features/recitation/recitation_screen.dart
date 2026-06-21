@@ -57,6 +57,11 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   int _seenEvents = 0;
   bool _finishing = false;
 
+  // Real-time substitution feedback: briefly flash the mis-said word red.
+  int? _flashPos;
+  Timer? _flashTimer;
+  static const Duration _kFlashDuration = Duration(milliseconds: 800);
+
   // Page renderer (Mushaf Phase 2).
   late final List<PageGlyph> _glyphs;
   late final MushafPageController _pageCtrl;
@@ -133,6 +138,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           'cursor $before→${_controller.cursor} '
           'revealed=${_controller.revealedIndices.length} '
           'err=${_controller.lastError?.errorType.name ?? '-'}');
+
+      // Real-time feedback: a substitution this utterance → flash that word red
+      // so the student knows immediately (not only at the end-of-session report).
+      final le = _controller.lastError;
+      if (le != null && le.errorType == ErrorType.substitution) {
+        final pos = _wordPos[le.wordId];
+        if (pos != null) _flashWord(pos);
+      }
       dlog('  expected@$before=$expWin  recognized=$recog');
 
       // If this utterance re-anchored, print the asrLag range that was jumped
@@ -173,6 +186,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   @override
   void dispose() {
     _silenceTimer?.cancel();
+    _flashTimer?.cancel();
     _asr.stop();
     _pageCtrl.dispose();
     super.dispose();
@@ -197,6 +211,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     for (var j = pos + 1; j < _glyphs.length && !_glyphs[j].isWord; j++) {
       _pageCtrl.revealWord(_glyphs[j].positionInPage);
     }
+  }
+
+  void _flashWord(int pos) {
+    _flashTimer?.cancel();
+    setState(() => _flashPos = pos);
+    _flashTimer = Timer(_kFlashDuration, () {
+      if (mounted) setState(() => _flashPos = null);
+    });
   }
 
   int? get _cursorPosition => _controller.cursor < _scope.length
@@ -242,6 +264,13 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             'asrFailures=${_controller.consecutiveAsrFailures}. '
             'If recitation appears frozen here, this is the engine-side stall; '
             'a worker-side stall instead shows NO "tarteel result" lines.');
+      }
+      // Stuck beyond re-anchor's reach (garbled ASR) → flush the ASR's VAD/
+      // decoder (automated pause/resume recovery, mic stays live).
+      if (fresh.any((e) => e.type == RecitationEventType.requestAsrReset)) {
+        dlog('↻ AUTO ASR FLUSH — stuck and re-anchor failed; resetting VAD '
+            '(cursor=${_controller.cursor})');
+        _asr.flush();
       }
     }
     setState(() {});
@@ -392,6 +421,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               glyphs: _glyphs,
               controller: _pageCtrl,
               currentPosition: _cursorPosition,
+              flashPosition: _flashPos,
               surahName: _surahLabel,
               juz: _juz,
               // The Scaffold AppBar is the single top bar — avoid a duplicate.

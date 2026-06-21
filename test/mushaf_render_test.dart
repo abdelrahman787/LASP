@@ -105,12 +105,34 @@ void main() {
     await tester.pumpAndSettle();
     final staticBuilders = find.byType(AnimatedBuilder).evaluate().length;
 
-    // Words still render in the static path...
-    expect(find.text('بِسْمِ'), findsOneWidget);
-    expect(find.text('ٱلْحَمْدُ'), findsOneWidget);
-    // ...with strictly fewer AnimatedBuilders (one per glyph removed) — the
-    // page-swipe build-cost reduction.
+    // Words still render in the static path (now one Text per line)...
+    expect(find.textContaining('بِسْمِ'), findsOneWidget);
+    expect(find.textContaining('ٱلْحَمْدُ'), findsOneWidget);
+    // ...with strictly fewer AnimatedBuilders (per-glyph machinery removed) —
+    // the page-swipe build-cost reduction.
     expect(staticBuilders, lessThan(interactiveBuilders));
+  });
+
+  testWidgets('flashPosition outlines the mis-said word in red', (tester) async {
+    final c = MushafPageController()..showAllWords([0, 1, 2, 3]);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MushafPageWidget(
+          pageNumber: 1,
+          glyphs: sampleGlyphs(),
+          controller: c,
+          showTopBar: false,
+          flashPosition: 0, // flag word 0 as a just-confirmed substitution
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final hasRed = tester.widgetList<Container>(find.byType(Container)).any((w) {
+      final d = w.decoration;
+      return d is BoxDecoration &&
+          d.border?.top.color == const Color(0xFFD32F2F);
+    });
+    expect(hasRed, isTrue, reason: 'the flashed word gets a red outline');
   });
 
   testWidgets('a dense line in a narrow width does not overflow', (tester) async {

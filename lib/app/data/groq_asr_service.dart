@@ -269,6 +269,9 @@ class GroqAsrService implements AsrService {
   }
 
   @override
+  Future<void> flush() async {} // cloud ASR has no local VAD/decoder state
+
+  @override
   Future<void> stop() async {
     _running = false;
     _paused = false;

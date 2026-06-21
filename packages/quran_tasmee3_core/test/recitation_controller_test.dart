@@ -407,6 +407,20 @@ void main() {
       expect(c.cursor, 0);
     });
 
+    test('prolonged stuck with non-anchoring garbage → requestAsrReset', () {
+      c = build(); // reanchorThreshold 3 → reset at 3×2 = 6
+      c.start();
+      const junk = AsrResult('زقمون', 0.9); // substitution, anchors nowhere
+      for (var i = 0; i < 6; i++) {
+        c.submitAsr(junk);
+      }
+      expect(c.events.any((e) => e.type == RecitationEventType.requestAsrReset),
+          isTrue, reason: 'asks the ASR to flush when re-anchor cannot recover');
+      // Re-anchor never succeeded (nothing to anchor to).
+      expect(c.events.any((e) => e.type == RecitationEventType.reanchored),
+          isFalse);
+    });
+
     test('reanchorThreshold: 0 disables re-anchor', () {
       c = build(reanchorThreshold: 0);
       c.start();

@@ -220,10 +220,14 @@ class TarteelOnDeviceAsrService implements AsrService {
   @override
   Future<void> pause() async {
     if (!_running || _paused) return;
-    _paused = true;
+    // Pause the recorder FIRST, then set the flag. Chunks delivered while the
+    // pause is in flight are still forwarded (so mic == sent — no capture-audit
+    // loss); once pause() resolves the stream stops emitting, and the flag
+    // guards any straggler. (Setting the flag first dropped ~in-flight chunks.)
     try {
       if (await _recorder.isRecording()) await _recorder.pause();
     } catch (_) {}
+    _paused = true;
     dlog('tarteel paused');
   }
 
@@ -236,6 +240,17 @@ class TarteelOnDeviceAsrService implements AsrService {
       await _recorder.resume();
     } catch (_) {}
     dlog('tarteel resumed');
+  }
+
+  @override
+  Future<void> flush() async {
+    // Automated stuck-recovery: reset the worker's VAD/overlap state (the same
+    // 'reset' a pause/resume sends) WITHOUT pausing the mic — so no captured
+    // audio is dropped. The decode for any buffered segment is discarded; fresh
+    // audio starts a clean segment, which clears garbled-transcript stalls.
+    if (!_running || _paused) return;
+    _toWorker?.send('reset');
+    dlog('tarteel flush (stuck recovery — VAD reset, mic kept live)');
   }
 
   @override
