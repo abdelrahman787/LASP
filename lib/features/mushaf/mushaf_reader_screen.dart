@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/data/quran_repository.dart';
+import '../../app/perf.dart';
 import '../../app/providers.dart';
 import '../recitation/recitation_screen.dart';
 import 'mushaf_index_screen.dart';
@@ -45,6 +46,10 @@ class _PagerState extends ConsumerState<_Pager> {
   late final PageController _controller;
   late int _current;
 
+  // Real-device frame profiler — logs build vs raster ms for janky frames so a
+  // swipe can be profiled without DevTools. See FrameTimingProbe.
+  final FrameTimingProbe _probe = FrameTimingProbe('mushaf-swipe');
+
   int _indexOf(int page) {
     final i = widget.pages.indexOf(page);
     return i < 0 ? 0 : i;
@@ -57,11 +62,13 @@ class _PagerState extends ConsumerState<_Pager> {
     _current = widget.pages[startIdx];
     _controller = PageController(initialPage: startIdx);
     _precacheAround(startIdx);
+    _probe.start();
   }
 
-  // Warm the page fonts for current ± 1 so swiping doesn't stutter on font load.
+  // Warm the page fonts for current ± 2 so swiping doesn't stutter on font load
+  // (font registration is one of the suspected real-device swipe costs).
   void _precacheAround(int idx) {
-    for (final j in [idx - 1, idx, idx + 1]) {
+    for (final j in [idx - 2, idx - 1, idx, idx + 1, idx + 2]) {
       if (j >= 0 && j < widget.pages.length) {
         PageFontLoader.ensure(widget.pages[j]);
       }
@@ -70,6 +77,7 @@ class _PagerState extends ConsumerState<_Pager> {
 
   @override
   void dispose() {
+    _probe.stop();
     _controller.dispose();
     super.dispose();
   }
@@ -107,7 +115,8 @@ class _PagerState extends ConsumerState<_Pager> {
           _precacheAround(i);
           setState(() => _current = widget.pages[i]);
         },
-        itemBuilder: (context, i) => _ReaderPage(pageNumber: widget.pages[i]),
+        itemBuilder: (context, i) =>
+            RepaintBoundary(child: _ReaderPage(pageNumber: widget.pages[i])),
       ),
     );
   }
