@@ -139,10 +139,15 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           'revealed=${_controller.revealedIndices.length} '
           'err=${_controller.lastError?.errorType.name ?? '-'}');
 
-      // Real-time feedback: a substitution this utterance → flash that word red
-      // so the student knows immediately (not only at the end-of-session report).
+      // Real-time feedback: flash a word red ONLY when a substitution is
+      // CONFIRMED (the ladder reached attempt 3). A single soft/transient
+      // substitution is often just ASR/segment-overlap noise on a word the
+      // student actually said correctly — flashing those produced false
+      // positives, so we wait until we're sure.
       final le = _controller.lastError;
-      if (le != null && le.errorType == ErrorType.substitution) {
+      if (le != null &&
+          le.errorType == ErrorType.substitution &&
+          le.severity == ErrorSeverity.confirmed) {
         final pos = _wordPos[le.wordId];
         if (pos != null) _flashWord(pos);
       }

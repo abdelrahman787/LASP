@@ -208,6 +208,18 @@ void main() {
       expect(c.cursor, 0, reason: 'errors never advance the cursor');
     });
 
+    test('lastError is cleared every utterance (no stale flash on later words)',
+        () {
+      c = build(reanchorThreshold: 0);
+      c.start();
+      c.submitAsr(const AsrResult('زقمون', 0.95)); // substitution @ cursor 0
+      expect(c.lastError?.errorType, ErrorType.substitution);
+      c.submitAsr(const AsrResult('', 0.0)); // ASR failure must clear it
+      expect(c.lastError, isNull, reason: 'failure path clears classification');
+      c.submitAsr(const AsrResult('بسم', 0.95)); // correct → advance, no error
+      expect(c.lastError, isNull, reason: 'a clean utterance leaves it null');
+    });
+
     test('a single substitution appears in the report (not dropped)', () {
       // The device repro: one clearly-wrong word, normal flow, no re-anchor.
       c = build(reanchorThreshold: 0);

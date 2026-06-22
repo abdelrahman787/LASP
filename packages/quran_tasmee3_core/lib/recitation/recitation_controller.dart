@@ -259,6 +259,11 @@ class RecitationController {
 
   void _processUtterance(AsrResult r) {
     _status = RecitationStatus.matching;
+    // Clear the previous utterance's classification up-front so `lastError`
+    // ALWAYS reflects only THIS utterance — including the early-return failure
+    // paths below. (Otherwise a stale substitution lingered and, e.g., re-fired
+    // the real-time flash on later correct/silent utterances.)
+    _lastError = null;
 
     // ASR failure: empty/whitespace text or confidence 0 → silent non-result.
     if (r.isFailure) {
@@ -273,10 +278,6 @@ class RecitationController {
       _status = RecitationStatus.listening;
       return;
     }
-
-    // Clear the previous utterance's classification so `lastError` reflects
-    // only THIS utterance (a clean, fully-accepted utterance leaves it null).
-    _lastError = null;
 
     final result = matchUtterance(
       scope: scope,
