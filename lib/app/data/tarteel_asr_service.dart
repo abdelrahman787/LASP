@@ -316,10 +316,11 @@ const double _kVadThreshold = 0.5;
 /// Watchdog: if this many seconds of audio arrive without the VAD ever ending a
 /// segment, assume it's wedged and force a flush+drain — the same recovery that
 /// pause/resume performs (which the field report confirmed un-sticks the
-/// "no results at all" freeze). Set comfortably above [_kMaxSpeechDuration],
-/// which force-ends a segment every 5s of continuous speech, so this only trips
-/// on a genuinely stuck VAD, not normal recitation.
-const double _kVadWatchdogSeconds = 7.0;
+/// "no results at all" freeze). Must sit well above [_kMaxSpeechDuration] (5s
+/// force-cut) AND above normal between-ayah pauses, or it false-fires on every
+/// reading pause and flushes mid-flow (on-device logs showed 7s firing during
+/// normal silence). 12s only trips on a genuine indefinite stall.
+const double _kVadWatchdogSeconds = 12.0;
 
 /// Seconds of audio carried from the END of one VAD segment into the START of
 /// the next before recognition. A word clipped at a segment boundary (natural

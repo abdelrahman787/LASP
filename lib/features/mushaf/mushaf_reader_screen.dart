@@ -47,8 +47,10 @@ class _PagerState extends ConsumerState<_Pager> {
   late int _current;
 
   // Real-device frame profiler — logs build vs raster ms for janky frames so a
-  // swipe can be profiled without DevTools. See FrameTimingProbe.
-  final FrameTimingProbe _probe = FrameTimingProbe('mushaf-swipe');
+  // swipe can be profiled without DevTools. Threshold 70ms so it only reports
+  // real swipe spikes; the callback is global, so a lower threshold floods
+  // debugPrint (and adds overhead) on every recitation frame.
+  final FrameTimingProbe _probe = FrameTimingProbe('mushaf-swipe', thresholdMs: 70);
 
   int _indexOf(int page) {
     final i = widget.pages.indexOf(page);
@@ -65,42 +67,16 @@ class _PagerState extends ConsumerState<_Pager> {
     _probe.start();
   }
 
-  // Warm current ± 2 pages OFF the swipe frame: load+parse each page font and
-  // pre-shape its lines. The first use of a freshly-loaded per-page QCF font is
-  // the dominant page-swipe BUILD cost (font parse + cold shaping, plus the
-  // global systemFonts re-layout FontLoader triggers). Doing it ahead, during
-  // idle, means the on-screen build reuses an already-parsed/warm font.
+  // Pre-LOAD current ± 2 page fonts during idle so the font is parsed before
+  // the page is shown (the first use of a cold per-page font is the swipe cost).
+  // NOTE: we deliberately do NOT pre-shape glyph lines here — TextPainter.layout
+  // runs on the UI thread, so doing it around a swipe added ~75 layouts/frame of
+  // jank (measured on-device). Font parse alone is the cheap, useful part.
   void _precacheAround(int idx) {
-    final data = ref.read(quranDataProvider).valueOrNull;
     for (final j in [idx - 2, idx - 1, idx, idx + 1, idx + 2]) {
       if (j >= 0 && j < widget.pages.length) {
-        _warmPage(widget.pages[j], data);
+        PageFontLoader.ensure(widget.pages[j]);
       }
-    }
-  }
-
-  Future<void> _warmPage(int page, QuranData? data) async {
-    final ok = await PageFontLoader.ensure(page); // font parse fires here (idle)
-    if (!ok || !mounted || data == null) return;
-    final glyphs = data.pageGlyphs[page];
-    if (glyphs == null || glyphs.isEmpty) return;
-    // Pre-shape each line once with the page font so its glyph runs are warm
-    // before the page is rendered (off the critical swipe frame).
-    final fam = PageFontLoader.family(page);
-    final byLine = <int, StringBuffer>{};
-    for (final g in glyphs) {
-      (byLine[g.lineNumber] ??= StringBuffer()).write(g.text);
-    }
-    for (final buf in byLine.values) {
-      final tp = TextPainter(
-        text: TextSpan(
-          text: buf.toString(),
-          style: TextStyle(fontFamily: fam, fontSize: 24, height: 1.0),
-        ),
-        textDirection: TextDirection.rtl,
-        maxLines: 1,
-      )..layout();
-      tp.dispose();
     }
   }
 

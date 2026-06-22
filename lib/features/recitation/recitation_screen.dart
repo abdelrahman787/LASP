@@ -172,11 +172,15 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     });
     _controller.start();
 
-    // Real silence behavior: poll the timers against the wall clock.
+    // Real silence behavior: poll the timers against the wall clock. Only
+    // rebuild when the tick actually produced an event (e.g. a silence-forget) —
+    // an unconditional setState here re-laid-out the whole 150-glyph page twice
+    // a second during recitation, competing with ASR result processing on the
+    // UI thread.
     var lastTickStatus = '';
     _silenceTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      final before = _controller.events.length;
       _controller.checkSilence();
-      // Log only when something changed to avoid 2/sec spam.
       final snap = 'cursor=${_controller.cursor} '
           'silence=${_controller.silenceIndicatorVisible} '
           'status=${_controller.status.name}';
@@ -184,7 +188,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
         dlog('checkSilence $snap');
         lastTickStatus = snap;
       }
-      _refresh();
+      if (_controller.events.length != before) _refresh();
     });
   }
 
