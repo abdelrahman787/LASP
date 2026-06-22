@@ -45,6 +45,7 @@ class _Pager extends ConsumerStatefulWidget {
 class _PagerState extends ConsumerState<_Pager> {
   late final PageController _controller;
   late int _current;
+  late int _activeIndex; // the settled page index (only this one builds content)
 
   // Real-device frame profiler — logs build vs raster ms for janky frames so a
   // swipe can be profiled without DevTools. Threshold 70ms so it only reports
@@ -62,6 +63,7 @@ class _PagerState extends ConsumerState<_Pager> {
     super.initState();
     final startIdx = _indexOf(widget.initialPage);
     _current = widget.pages[startIdx];
+    _activeIndex = startIdx;
     _controller = PageController(initialPage: startIdx);
     _precacheAround(startIdx);
     _probe.start();
@@ -118,20 +120,32 @@ class _PagerState extends ConsumerState<_Pager> {
         itemCount: widget.pages.length,
         onPageChanged: (i) {
           _precacheAround(i);
-          setState(() => _current = widget.pages[i]);
+          // Only the settled page builds its (heavy) content. Neighbours that
+          // merely peek during the drag stay cheap placeholders, so the swipe
+          // animation is smooth; the new page fills in once it settles.
+          setState(() {
+            _current = widget.pages[i];
+            _activeIndex = i;
+          });
         },
-        itemBuilder: (context, i) =>
-            RepaintBoundary(child: _ReaderPage(pageNumber: widget.pages[i])),
+        itemBuilder: (context, i) => RepaintBoundary(
+          child: _ReaderPage(
+            pageNumber: widget.pages[i],
+            active: i == _activeIndex,
+          ),
+        ),
       ),
     );
   }
 }
 
-/// One read-only page (all words visible). Kept alive so revisited pages don't
-/// rebuild/reload on every swipe.
+/// One read-only page (all words visible). Builds its heavy mushaf content only
+/// when [active] (the settled page); while merely peeking during a swipe it
+/// shows a cheap placeholder so the drag stays at 60fps.
 class _ReaderPage extends ConsumerStatefulWidget {
   final int pageNumber;
-  const _ReaderPage({required this.pageNumber});
+  final bool active;
+  const _ReaderPage({required this.pageNumber, required this.active});
 
   @override
   ConsumerState<_ReaderPage> createState() => _ReaderPageState();
@@ -200,6 +214,12 @@ class _ReaderPageState extends ConsumerState<_ReaderPage>
   @override
   Widget build(BuildContext context) {
     super.build(context); // for keep-alive
+    // While this page is only peeking during a swipe, show a cheap cream
+    // placeholder (no per-page font parse / 150-glyph layout) so the drag stays
+    // smooth. The full page builds the instant it settles.
+    if (!widget.active) {
+      return const ColoredBox(color: Color(0xFFFDFBF7));
+    }
     return MushafPageWidget(
       pageNumber: widget.pageNumber,
       glyphs: _glyphs,

@@ -309,8 +309,14 @@ class _AsrInit {
 ///  - _kMinSilenceDuration: pause length needed to END a segment (higher avoids
 ///      mid-word cuts on breathing pauses).
 const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
-const double _kMaxSpeechDuration = 5.0; // Test D: was 7.0 (cap worst-case wait)
-const double _kMinSilenceDuration = 0.45;
+// LATENCY is dominated by segment length: a result only arrives at the END of a
+// VAD segment, so a long segment means the reciter is already lines ahead by the
+// time the word is matched (→ false substitutions / red flash / broken flow).
+// Keep segments SHORT so recognition is near-real-time. 2.0s + ~0.8s decode ≈
+// ~2.5s worst-case latency (vs ~7–8s at 5s). The 0.6s overlap bridges words cut
+// at the boundary, and the matcher tolerates short-context noise.
+const double _kMaxSpeechDuration = 2.0; // was 5.0 — cut recognition latency
+const double _kMinSilenceDuration = 0.35; // end on shorter pauses too (was 0.45)
 const double _kVadThreshold = 0.5;
 
 /// Watchdog: if this many seconds of audio arrive without the VAD ever ending a
