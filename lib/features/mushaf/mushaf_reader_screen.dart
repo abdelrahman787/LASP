@@ -65,13 +65,42 @@ class _PagerState extends ConsumerState<_Pager> {
     _probe.start();
   }
 
-  // Warm the page fonts for current ± 2 so swiping doesn't stutter on font load
-  // (font registration is one of the suspected real-device swipe costs).
+  // Warm current ± 2 pages OFF the swipe frame: load+parse each page font and
+  // pre-shape its lines. The first use of a freshly-loaded per-page QCF font is
+  // the dominant page-swipe BUILD cost (font parse + cold shaping, plus the
+  // global systemFonts re-layout FontLoader triggers). Doing it ahead, during
+  // idle, means the on-screen build reuses an already-parsed/warm font.
   void _precacheAround(int idx) {
+    final data = ref.read(quranDataProvider).valueOrNull;
     for (final j in [idx - 2, idx - 1, idx, idx + 1, idx + 2]) {
       if (j >= 0 && j < widget.pages.length) {
-        PageFontLoader.ensure(widget.pages[j]);
+        _warmPage(widget.pages[j], data);
       }
+    }
+  }
+
+  Future<void> _warmPage(int page, QuranData? data) async {
+    final ok = await PageFontLoader.ensure(page); // font parse fires here (idle)
+    if (!ok || !mounted || data == null) return;
+    final glyphs = data.pageGlyphs[page];
+    if (glyphs == null || glyphs.isEmpty) return;
+    // Pre-shape each line once with the page font so its glyph runs are warm
+    // before the page is rendered (off the critical swipe frame).
+    final fam = PageFontLoader.family(page);
+    final byLine = <int, StringBuffer>{};
+    for (final g in glyphs) {
+      (byLine[g.lineNumber] ??= StringBuffer()).write(g.text);
+    }
+    for (final buf in byLine.values) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: buf.toString(),
+          style: TextStyle(fontFamily: fam, fontSize: 24, height: 1.0),
+        ),
+        textDirection: TextDirection.rtl,
+        maxLines: 1,
+      )..layout();
+      tp.dispose();
     }
   }
 
@@ -140,8 +169,13 @@ class _ReaderPageState extends ConsumerState<_ReaderPage>
   String _surahLabel = '';
   int? _juz;
 
+  // Do NOT keep every visited page alive. Each new page's font registration
+  // fires a global systemFonts re-layout; keeping all pages alive made that
+  // re-shape EVERY visited page (cost grew as you read — the escalating swipe
+  // jank). Off-screen pages are now disposed, bounding the re-shape to the live
+  // window. Rebuild-on-return is cheap (font already warm, one Text per line).
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => false;
 
   @override
   void initState() {
