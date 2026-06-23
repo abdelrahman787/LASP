@@ -404,6 +404,9 @@ void _workerMain(_AsrInit init) {
   // Watchdog: samples received since the VAD last ended a segment.
   var samplesSinceSegment = 0;
   final watchdogSamples = (_kVadWatchdogSeconds * sampleRate).round();
+  // Manual segment cap (sherpa ignores maxSpeechDuration) — force-cut after this
+  // much continuous detected speech so results stay near-real-time.
+  final maxSegmentSamples = (_kMaxSpeechDuration * sampleRate).round();
   // Boundary overlap: tail of the previously-decoded segment.
   final overlapLen = (_kSegmentOverlap * sampleRate).round();
   Float32List? prevTail;
@@ -468,6 +471,18 @@ void _workerMain(_AsrInit init) {
       samplesSinceSegment += f.length;
       vad.acceptWaveform(f);
       drainVad();
+      // Manual maxSpeechDuration enforcement: sherpa's Silero VAD IGNORES the
+      // configured maxSpeechDuration (segments ran 4–6s on device), so during
+      // continuous speech we force-cut the in-progress segment ourselves once
+      // it reaches the cap. This is THE latency fix — a result then arrives
+      // ~every 2s instead of only when the reciter finally pauses. The 0.6s
+      // overlap bridges the word at the forced cut.
+      if (samplesSinceSegment >= maxSegmentSamples && vad.isDetected()) {
+        try {
+          vad.flush();
+        } catch (_) {}
+        drainVad();
+      }
       // Watchdog: audio kept flowing but no segment ended for too long → the VAD
       // is likely wedged. Recover like pause/resume does (flush + drain).
       if (samplesSinceSegment >= watchdogSamples) {

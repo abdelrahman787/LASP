@@ -16,9 +16,10 @@ class QuranTasmee3App extends ConsumerWidget {
     // light auth/dashboard screens are visible. Each FontLoader.load fires a
     // global systemFonts re-layout — doing all 604 now (cheap re-layouts) means
     // the reader never loads a font mid-swipe, which was the page-turn jank.
-    ref.listen<dynamic>(quranDataProvider, (prev, next) {
-      final data = next.valueOrNull;
-      if (data != null) PageFontLoader.preloadAll(data.pages);
+    ref.listen(quranDataProvider, (prev, next) {
+      next.whenData((data) {
+        if (data != null) PageFontLoader.preloadAll(data.pages);
+      });
     });
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
