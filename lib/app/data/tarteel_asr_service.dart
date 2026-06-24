@@ -62,13 +62,17 @@ class TarteelOnDeviceAsrService implements AsrService {
   SendPort? _toWorker;
   ReceivePort? _fromWorker;
 
-  /// Recognizer threads — use several cores (Whisper decode is the bottleneck),
-  /// capped to avoid contention with the audio thread.
+  /// Recognizer threads — Whisper decode parallelises across cores. Use
+  /// (cores − 2), leaving two for the UI/main isolate and the mic-capture
+  /// thread, capped at [_kMaxRecognizerThreads]. On an 8-core phone → 6.
+  /// NOTE: this speeds up DECODE only; the dominant latency is the segment
+  /// length (waiting for the chunk), and it does NOT change recognition
+  /// accuracy. On big.LITTLE SoCs, going past the performance-core count can
+  /// hurt — tune [_kMaxRecognizerThreads] if a higher value regresses.
   static int get _recognizerThreads {
     final n = Platform.numberOfProcessors;
     if (n <= 2) return 2;
-    if (n >= 8) return 4;
-    return n - 1;
+    return (n - 2).clamp(2, _kMaxRecognizerThreads);
   }
 
   Future<bool> _ensureWorker() async {
@@ -309,6 +313,9 @@ class _AsrInit {
 ///  - _kMinSilenceDuration: pause length needed to END a segment (higher avoids
 ///      mid-word cuts on breathing pauses).
 const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
+// Upper bound on Whisper decode threads (see _recognizerThreads). A/B knob:
+// try 6, drop to 4 if a higher count regresses on this device's big.LITTLE CPU.
+const int _kMaxRecognizerThreads = 6;
 // LATENCY is dominated by segment length: a result only arrives at the END of a
 // VAD segment, so a long segment means the reciter is already lines ahead by the
 // time the word is matched (→ false substitutions / red flash / broken flow).
