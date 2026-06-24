@@ -42,6 +42,11 @@ const int kSilentStallThreshold = 5;
 /// controller asks the ASR layer to flush — the automated pause/resume recovery.
 const int kAsrResetStuckMultiplier = 2;
 
+/// A re-anchor may jump backward at most this many words. The reciter moves
+/// forward, so a strong anchor far behind is almost always a repeated phrase
+/// the garbled ASR matched — jumping back to it derails the cursor.
+const int kMaxBackwardReanchor = 4;
+
 /// A logged mistake, matching the Firestore `errors` document shape (Phase 5):
 /// `{ wordId, expectedText, recognizedText, errorType, confidence, attempts,
 /// manualReveal, createdAt }`, plus a [severity] for the report layer.
@@ -388,6 +393,13 @@ class RecitationController {
       minWords: reanchorMinWords,
     );
     if (anchor == null || anchor.startIndex == _cursor) return false;
+
+    // Reject a far-BACKWARD jump. The reciter moves forward, so a strong anchor
+    // behind the cursor is almost always a repeated phrase elsewhere on the page
+    // (e.g. "إن الله على كل شيء قدير") that garbled ASR matched — jumping back to
+    // it throws the cursor into chaos. Allow a small backward window for genuine
+    // restarts; reject anything further behind.
+    if (anchor.startIndex < _cursor - kMaxBackwardReanchor) return false;
 
     final oldCursor = _cursor;
 

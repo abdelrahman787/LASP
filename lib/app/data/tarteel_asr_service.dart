@@ -315,7 +315,7 @@ const String _kAsrProvider = 'cpu'; // 'cpu' | 'nnapi' | 'xnnpack'
 // Keep segments SHORT so recognition is near-real-time. 2.0s + ~0.8s decode ≈
 // ~2.5s worst-case latency (vs ~7–8s at 5s). The 0.6s overlap bridges words cut
 // at the boundary, and the matcher tolerates short-context noise.
-const double _kMaxSpeechDuration = 2.0; // was 5.0 — cut recognition latency
+const double _kMaxSpeechDuration = 3.0; // 2s was fast but Whisper garbled it;
 const double _kMinSilenceDuration = 0.35; // end on shorter pauses too (was 0.45)
 const double _kVadThreshold = 0.5;
 
