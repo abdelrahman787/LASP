@@ -417,6 +417,12 @@ void _workerMain(_AsrInit init) {
       vad.pop();
       samplesSinceSegment = 0; // a segment ended → the VAD is alive
 
+      // A manual flush mid-speech can emit an empty/near-empty segment — skip it
+      // (decoding it is wasted work and yields a junk partial result).
+      if (seg.samples.length < (0.2 * sampleRate)) {
+        continue;
+      }
+
       // Prepend the previous segment's tail so a word split at the boundary is
       // intact here too. `decoded` is what we hand the recognizer; `seg.samples`
       // is the raw VAD segment (used for the new tail and the timing log).
