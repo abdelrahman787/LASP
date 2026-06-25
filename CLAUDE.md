@@ -39,6 +39,18 @@ Hafs riwayah, with tashkeel.)
 - Streaming is cache-aware: carry `cache_last_channel` / `cache_last_time` across chunks, and carry the prev-token state across chunks or you get duplicated letters at chunk seams.
 - Output orthography is **imlaei**, while the mushaf displays **Uthmani rasm**. Reconcile in matching with **alef-insensitive normalization** (already implemented in `normalizer.dart`).
 - RTF on Android native ≈ 0.04 (very fast). Streaming adds ~1.6 s latency per chunk — this is expected and acceptable, NOT a bug.
+- **tokens.txt ships WITHOUT the CTC blank.** The downloaded `tokens.txt` has
+  1024 lines (ids 0–1023) but the model's `vocab_size = 1025`; the blank token
+  (id 1024) is omitted. sherpa-onnx refuses to load it ("We expect that
+  tokens.txt contains the symbol `<blk>` or `<eps>` or `<blank>` and its ID").
+  FIX: append `<blk> 1024` — run `python tools/asr/fix_tokens_blank.py
+  assets/models/tarteel/tokens.txt` (idempotent). Re-run after any re-download.
+- **The model already carries sherpa's required ONNX metadata** — no metadata
+  injection needed. sherpa logs on load: `subsampling_factor=4`,
+  `vocab_size=1025`, `model_type=EncDecCTCModelBPE`, `normalize_type=per_feature`,
+  `model_author=nemo`. (Note `subsampling_factor=4`, NOT 8.) So
+  `tools/asr/add_sherpa_metadata.py` is a fallback that is NOT required for this
+  export.
 
 **Runtime:** This model was exported for `onnxruntime`, not necessarily for the
 `sherpa_onnx` package. Before building the ASR pipeline, RESEARCH and DECIDE
