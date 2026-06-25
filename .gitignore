@@ -35,3 +35,22 @@ assets/models/tarteel/*
 !assets/models/tarteel/.gitkeep
 tools/asr/_work/
 tools/asr/__pycache__/
+# Secrets — NEVER commit
+android/app/google-services.json
+lib/firebase_options.dart
+firestore.rules.bak
+lib/firebase_options.dart.bak
+.firebaserc
+
+# Heavy / generated
+.venv/
+tarteel_ct2/
+*.onnx
+*.data
+sym_shape_infer_temp.onnx
+android/hs_err_pid*.log
+android/.kotlin/
+.agents/
+
+# Local test audio
+assets/test_audio/
