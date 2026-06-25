@@ -14,6 +14,7 @@ import 'data/auth_service.dart';
 import 'data/fake_data.dart';
 import 'data/firestore_repositories.dart';
 import 'data/groq_asr_service.dart';
+import 'data/sherpa_onnx_asr_service.dart';
 import 'data/tarteel_asr_service.dart';
 import 'env.dart';
 import 'data/quran_repository.dart';
@@ -59,14 +60,28 @@ const String kWorkerUrl =
 /// Whether the cloud Worker path is enabled when on-device ASR is off.
 const bool kUseRealAsr = true;
 
-/// ASR backend selection:
-///   1. kUseOnDeviceAsr  → TarteelOnDeviceAsrService (Sherpa-ONNX Whisper, offline)
-///   2. else kUseRealAsr → GroqAsrService (Cloudflare Worker)   [debug fallback]
-///   3. else             → FakeAsrService (tests / no mic)
+/// Whether to use the new SherpaOnnxAsrService (NeMo FastConformer-CTC int8,
+/// gate-1-verified at RTF≈0.032). Set to true for Phase 2+ on-device testing.
+/// Keep false (the default) so existing tests continue to use FakeAsrService.
+///
+/// Priority ladder:
+///   1. kUseOnDeviceAsr        → TarteelOnDeviceAsrService (Whisper offline)
+///   2. kUseSherpaOnDeviceAsr  → SherpaOnnxAsrService (NeMo-CTC int8, new)
+///   3. else kUseRealAsr       → GroqAsrService (Cloudflare Worker fallback)
+///   4. else                   → FakeAsrService (tests / no mic)
+/// Tests override this provider with a FakeAsrService, so these flags only
+/// affect the running app — not the 112 core tests.
+const bool kUseSherpaOnDeviceAsr = false; // SWAP POINT: flip to true for Sherpa NeMo-CTC
+
+/// ASR backend selection — see [kUseSherpaOnDeviceAsr] and [kUseOnDeviceAsr].
 /// Tests override this provider with a fake, so the flags only affect the app.
 final asrServiceProvider = Provider<AsrService>((ref) {
   if (kUseOnDeviceAsr) {
     return TarteelOnDeviceAsrService();
+  }
+  // --- New NeMo-CTC gate-1-verified service (flip kUseSherpaOnDeviceAsr) ---
+  if (kUseSherpaOnDeviceAsr) {
+    return SherpaOnnxAsrService();
   }
   // --- Cloud fallback (kept for debugging; flip kUseOnDeviceAsr=false) ---
   if (kUseRealAsr) {
