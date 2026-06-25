@@ -67,54 +67,20 @@ Future<String> _copyAssetToFile(String assetKey, Directory dir) async {
   return f.path;
 }
 
-/// Minimal WAV (PCM16 mono) reader → Float32 samples in [-1,1] + sample rate.
-/// We parse manually rather than rely on a sherpa wav helper so the harness is
-/// robust across sherpa_onnx versions. Assumes a canonical 44-byte header.
-({Float32List samples, int sampleRate}) _readWavPcm16(Uint8List bytes) {
-  final bd = ByteData.view(bytes.buffer, bytes.offsetInBytes, bytes.length);
-  // Validate RIFF/WAVE.
-  String tag(int o) => String.fromCharCodes(bytes.sublist(o, o + 4));
-  if (tag(0) != 'RIFF' || tag(8) != 'WAVE') {
-    throw const FormatException('not a RIFF/WAVE file');
-  }
-  // Walk chunks to find fmt and data (don't assume fixed offsets).
-  var pos = 12;
-  var sampleRate = 16000;
-  var bitsPerSample = 16;
-  int? dataOffset, dataLen;
-  while (pos + 8 <= bytes.length) {
-    final id = tag(pos);
-    final sz = bd.getUint32(pos + 4, Endian.little);
-    final body = pos + 8;
-    if (id == 'fmt ') {
-      sampleRate = bd.getUint32(body + 4, Endian.little);
-      bitsPerSample = bd.getUint16(body + 14, Endian.little);
-    } else if (id == 'data') {
-      dataOffset = body;
-      dataLen = sz;
-    }
-    pos = body + sz + (sz.isOdd ? 1 : 0);
-  }
-  if (dataOffset == null || dataLen == null) {
-    throw const FormatException('no data chunk');
-  }
-  if (bitsPerSample != 16) {
-    throw FormatException('expected PCM16, got $bitsPerSample-bit');
-  }
-  final n = dataLen ~/ 2;
-  final out = Float32List(n);
-  for (var i = 0; i < n; i++) {
-    out[i] = bd.getInt16(dataOffset + i * 2, Endian.little) / 32768.0;
-  }
-  // The Gate-0 clip is mono PCM16; interleaved-stereo handling is out of scope.
-  return (samples: out, sampleRate: sampleRate == 0 ? 16000 : sampleRate);
-}
-
 /// Runs the Gate-1 check. Never throws — failures are captured in the report
 /// `log` so the screen can show sherpa's exact error.
 Future<GateOneReport> runGateOneCheck() async {
   final sb = StringBuffer();
-  void log(String m) => sb.writeln(m);
+  // Echo every line to stdout/logcat too: a native SIGSEGV inside
+  // SherpaOnnxDecodeOfflineStream kills the process BEFORE the on-screen
+  // report can render, so the pre-decode buffer stats only survive if they
+  // were already printed to the console (visible via `flutter run` and
+  // `adb logcat`). Without this, the crash erases the very diagnostics we
+  // need to see.
+  void log(String m) {
+    sb.writeln(m);
+    print('[GATE1] $m');
+  }
 
   log('GATE 1 — sherpa_onnx offline NeMo-CTC compatibility');
   log('sherpa_onnx version: see pubspec.lock');
@@ -185,14 +151,71 @@ Future<GateOneReport> runGateOneCheck() async {
 
   // --- Step 2: transcribe the Gate-0 wav -------------------------------------
   try {
-    final wavBytes = await File(wavPath).readAsBytes();
-    final wav = _readWavPcm16(wavBytes);
-    final audioSeconds = wav.samples.length / wav.sampleRate;
-    log('audio: ${audioSeconds.toStringAsFixed(2)}s @ ${wav.sampleRate} Hz');
+    // Use sherpa_onnx's own bundled readWave() — it parses the RIFF
+    // header in native C (the exact path sherpa's examples and the model
+    // card use) and returns a mono Float32List normalized to [-1,1] with
+    // the sample rate. This removes the hand-rolled Dart WAV parser as a
+    // source of buffer error: the ONLY thing that changed between the
+    // working Gate-0 (Python/librosa) and the crashing Gate-1 (Dart) is
+    // the audio-reading path, so we feed sherpa exactly what its own
+    // reader produces. readWave() returns an EMPTY WaveData (0 samples,
+    // rate 0) on a parse failure — guarded below before any decode,
+    // because a zero-frame decode is a native SIGSEGV in the CTC greedy
+    // path.
+    final fileBytes = await File(wavPath).length();
+    final wav = sherpa.readWave(wavPath);
+
+    // Buffer facts — emitted BEFORE acceptWaveform so they survive even a
+    // native fault in the next call. readWave exposes samples + sampleRate
+    // only (no raw header fields), so we report the on-disk file size and
+    // the parsed buffer it handed back. If readWave failed, sampleCount is
+    // 0 and sampleRate is 0 — caught by the guard below.
+    log('');
+    log('WAV (via sherpa.readWave):');
+    log('  fileBytes    : $fileBytes bytes (on disk)');
+    log('  sampleRate   : ${wav.sampleRate} Hz (0 => readWave failed to parse)');
+    log('  sampleCount  : ${wav.samples.length} (0 => empty/failed — must NOT decode)');
+
+    // Buffer sanity — computed and printed BEFORE decode. A SIGSEGV inside
+    // SherpaOnnxDecodeOfflineStream still leaves these on the console/logcat
+    // (log() also print()s), so we can tell whether the crash is the buffer
+    // (count == 0, min/max outside [-1,1], sampleRate != 16000) or the model.
+    final n = wav.samples.length;
+    if (n <= 0 || wav.sampleRate == 0) {
+      log('');
+      log('✗ readWave returned an empty buffer (sampleCount=$n, sampleRate=${wav.sampleRate}).');
+      log('  The WAV could not be parsed by sherpa\'s own reader — do NOT decode');
+      log('  (a zero-frame decode is a native SIGSEGV in the CTC greedy path).');
+      log('  Check assets/test_audio/ayah16k.wav is a real 16 kHz mono PCM16 WAV.');
+      recognizer.free();
+      return GateOneReport(
+        loaded: true, transcribed: false, text: '', rtf: 0,
+        audioSeconds: 0, inferMs: 0, log: sb.toString(),
+      );
+    }
+    var mn = double.infinity;
+    var mx = -double.infinity;
+    for (var i = 0; i < n; i++) {
+      final v = wav.samples[i];
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+    }
+    final audioSeconds = n / wav.sampleRate;
+    log('  duration     : ${audioSeconds.toStringAsFixed(3)} s');
+    log('  amplitude    : min=${mn.toStringAsFixed(4)}  max=${mx.toStringAsFixed(4)}  (expect ∈ [-1,1])');
+    log('  first8       : ${wav.samples.take(8).map((v) => v.toStringAsFixed(3)).join(', ')}');
+    if (wav.sampleRate != 16000) {
+      log('  ⚠ sampleRate != 16000 — model expects 16 kHz; decode may misbehave.');
+    }
+    if (mn < -1.0 || mx > 1.0) {
+      log('  ⚠ amplitude outside [-1,1] — buffer is NOT normalized; do not decode.');
+    }
 
     final sw = Stopwatch()..start();
     final stream = recognizer.createStream();
     stream.acceptWaveform(samples: wav.samples, sampleRate: wav.sampleRate);
+    log('  acceptWaveform: ok ($n Float32 samples handed to native)');
+    log('  decode… (crash here ⇒ model/feature path, not buffer — see stats above)');
     recognizer.decode(stream);
     final text = recognizer.getResult(stream).text;
     stream.free();
