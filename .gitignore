@@ -52,5 +52,6 @@ android/hs_err_pid*.log
 android/.kotlin/
 .agents/
 
-# Local test audio
-assets/test_audio/
+# Gate-0/Gate-1 verification audio (the human's own voice clip; not committed)
+assets/test_audio/*
+!assets/test_audio/.gitkeep
