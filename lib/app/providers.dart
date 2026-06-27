@@ -71,7 +71,7 @@ const bool kUseRealAsr = true;
 ///   4. else                   → FakeAsrService (tests / no mic)
 /// Tests override this provider with a FakeAsrService, so these flags only
 /// affect the running app — not the 112 core tests.
-const bool kUseSherpaOnDeviceAsr = false; // SWAP POINT: flip to true for Sherpa NeMo-CTC
+const bool kUseSherpaOnDeviceAsr = true; // SWAP POINT: flip to true for Sherpa NeMo-CTC
 
 /// ASR backend selection — see [kUseSherpaOnDeviceAsr] and [kUseOnDeviceAsr].
 /// Tests override this provider with a fake, so the flags only affect the app.
