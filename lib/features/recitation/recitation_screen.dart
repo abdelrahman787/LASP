@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +65,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
   // Page renderer (Mushaf Phase 2).
   late final List<PageGlyph> _glyphs;
   late final MushafPageController _pageCtrl;
-  late final Map<String, int> _wordPos; // wordId → positionInPage
+  late final Map<String, int> _wordPos; // wordId â†’ positionInPage
   String _surahLabel = '';
   int? _juz;
 
@@ -108,7 +108,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
 
     if (_scope.isNotEmpty) {
       final fw = _scope.first;
-      _surahLabel = 'سورة ${fw.surah}';
+      _surahLabel = 'ط³ظˆط±ط© ${fw.surah}';
       final meta =
           data?.ayahMeta.where((a) => a.surah == fw.surah && a.ayah == fw.ayah);
       if (meta != null && meta.isNotEmpty) _juz = meta.first.juz;
@@ -123,7 +123,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       onEvent: (_) => _refresh(),
     );
     _asr = ref.read(asrServiceProvider);
-    // Wire the ASR feed → the engine. Real impl streams mic chunks here.
+    // Wire the ASR feed â†’ the engine. Real impl streams mic chunks here.
     _asr.start((r) {
       final before = _controller.cursor;
       // Normalized tokens (exactly what the engine compares).
@@ -135,14 +135,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       final eventsBefore = _controller.events.length;
       _controller.submitAsr(r);
       dlog('submitAsr "${r.text}" conf=${r.confidence.toStringAsFixed(2)} '
-          'cursor $before→${_controller.cursor} '
+          'cursor $beforeâ†’${_controller.cursor} '
           'revealed=${_controller.revealedIndices.length} '
           'err=${_controller.lastError?.errorType.name ?? '-'}');
 
       // Real-time feedback: flash a word red ONLY when a substitution is
       // CONFIRMED (the ladder reached attempt 3). A single soft/transient
       // substitution is often just ASR/segment-overlap noise on a word the
-      // student actually said correctly — flashing those produced false
+      // student actually said correctly â€” flashing those produced false
       // positives, so we wait until we're sure.
       final le = _controller.lastError;
       if (le != null &&
@@ -154,7 +154,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       dlog('  expected@$before=$expWin  recognized=$recog');
 
       // If this utterance re-anchored, print the asrLag range that was jumped
-      // (now revealed on the page, classified asrLag — not a forget).
+      // (now revealed on the page, classified asrLag â€” not a forget).
       final reanchor = _controller.events
           .skip(eventsBefore)
           .where((e) => e.type == RecitationEventType.reanchored)
@@ -166,14 +166,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             _scope[i].wordId,
         ];
         dlog('  RE-ANCHOR jumped ${lagged.length} word(s) '
-            '[$before..${anchorStart - 1}] → asrLag (revealed): $lagged');
+            '[$before..${anchorStart - 1}] â†’ asrLag (revealed): $lagged');
       }
       _refresh();
     });
     _controller.start();
 
     // Real silence behavior: poll the timers against the wall clock. Only
-    // rebuild when the tick actually produced an event (e.g. a silence-forget) —
+    // rebuild when the tick actually produced an event (e.g. a silence-forget) â€”
     // an unconditional setState here re-laid-out the whole 150-glyph page twice
     // a second during recitation, competing with ASR result processing on the
     // UI thread.
@@ -242,18 +242,18 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       _seenEvents = _controller.events.length;
       if (fresh.any((e) => e.type == RecitationEventType.asrUnclear)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الصوت غير واضح'), duration: Duration(seconds: 2)),
+          const SnackBar(content: Text('ط§ظ„طµظˆطھ ط؛ظٹط± ظˆط§ط¶ط­'), duration: Duration(seconds: 2)),
         );
       }
       final reanchor = fresh
           .where((e) => e.type == RecitationEventType.reanchored)
           .lastOrNull;
       if (reanchor != null) {
-        dlog('RE-ANCHORED → cursor jumped to ${reanchor.index} '
+        dlog('RE-ANCHORED â†’ cursor jumped to ${reanchor.index} '
             '(recovered from stuck state)');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('تمت إعادة المحاذاة'),
+              content: Text('طھظ…طھ ط¥ط¹ط§ط¯ط© ط§ظ„ظ…ط­ط§ط°ط§ط©'),
               duration: Duration(seconds: 2)),
         );
       }
@@ -266,7 +266,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
         final pos = _controller.cursor < _scope.length
             ? _scope[_controller.cursor].wordId
             : '(end)';
-        dlog('⚠️ SILENT STALL — $kSilentStallThreshold+ utterances with no '
+        dlog('âڑ ï¸ڈ SILENT STALL â€” $kSilentStallThreshold+ utterances with no '
             'progress and no error. cursor=${_controller.cursor} word=$pos '
             'status=${_controller.status.name} '
             'consecutiveStuck=${_controller.consecutiveStuck} '
@@ -274,10 +274,10 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             'If recitation appears frozen here, this is the engine-side stall; '
             'a worker-side stall instead shows NO "tarteel result" lines.');
       }
-      // Stuck beyond re-anchor's reach (garbled ASR) → flush the ASR's VAD/
+      // Stuck beyond re-anchor's reach (garbled ASR) â†’ flush the ASR's VAD/
       // decoder (automated pause/resume recovery, mic stays live).
       if (fresh.any((e) => e.type == RecitationEventType.requestAsrReset)) {
-        dlog('↻ AUTO ASR FLUSH — stuck and re-anchor failed; resetting VAD '
+        dlog('â†» AUTO ASR FLUSH â€” stuck and re-anchor failed; resetting VAD '
             '(cursor=${_controller.cursor})');
         _asr.flush();
       }
@@ -291,6 +291,17 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     _finishing = true;
     _silenceTimer?.cancel();
     await _asr.stop();
+    // â”€â”€ Fix: mark every un-attempted word as a confirmed "forget" â”€â”€
+    // The locked scorer treats never-read words as 100%. We close that gap by
+    // asking the controller itself to record forgets for the rest of the scope,
+    // using its own public reveal funnel (guarantees correct RecordedError
+    // shape â€” no manual construction, no core edits).
+    var guard = 0;
+    while (_controller.cursor < _scope.length && guard < _scope.length + 2) {
+      _controller.revealFullAyah();
+      guard++;
+    }
+    // â”€â”€ end fix â”€â”€
 
     final report = buildSessionReport(scope: _scope, errors: _logger.errors);
     _logReport(report);
@@ -317,8 +328,8 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
         final days = item.isNotEmpty
             ? ((item.first.dueAt - now) / 86400000).round()
             : null;
-        summary = 'تمت المراجعة • النتيجة ${(report.score * 100).round()}%'
-            '${days != null ? ' • الاستحقاق القادم بعد $days يوم' : ''}';
+        summary = 'طھظ…طھ ط§ظ„ظ…ط±ط§ط¬ط¹ط© â€¢ ط§ظ„ظ†طھظٹط¬ط© ${(report.score * 100).round()}%'
+            '${days != null ? ' â€¢ ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚ ط§ظ„ظ‚ط§ط¯ظ… ط¨ط¹ط¯ $days ظٹظˆظ…' : ''}';
         dlog('review applied: item=${widget.planItemId} '
             'score=${result.score.toStringAsFixed(2)} nextDueDays=$days');
       } catch (e) {
@@ -353,13 +364,13 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     dlog('score=${(r.score * 100).round()}%  '
         'confirmed=${r.confirmedErrors}  soft=${r.softErrors}  '
         'totalWords=${r.totalWords}');
-    dlog('نسيان/forgetSilence (${r.forgetSilence.length}): ${ids(r.forgetSilence)}');
-    dlog('نسيان/forgetManual  (${r.forgetManual.length}): ${ids(r.forgetManual)}');
-    dlog('استبدال/substitution (${r.substitutions.length}): ${ids(r.substitutions)}');
-    dlog('زيادة/addition       (${r.additions.length}): ${ids(r.additions)}');
-    dlog('ترتيب/order          (${r.orderErrors.length}): ${ids(r.orderErrors)}');
-    dlog('نطق/pronunciation    (${r.pronunciations.length}): ${ids(r.pronunciations)}');
-    dlog('تأخر تعرف/asrLag     (${r.asrLag.length}): ${ids(r.asrLag)} [not scored]');
+    dlog('ظ†ط³ظٹط§ظ†/forgetSilence (${r.forgetSilence.length}): ${ids(r.forgetSilence)}');
+    dlog('ظ†ط³ظٹط§ظ†/forgetManual  (${r.forgetManual.length}): ${ids(r.forgetManual)}');
+    dlog('ط§ط³طھط¨ط¯ط§ظ„/substitution (${r.substitutions.length}): ${ids(r.substitutions)}');
+    dlog('ط²ظٹط§ط¯ط©/addition       (${r.additions.length}): ${ids(r.additions)}');
+    dlog('طھط±طھظٹط¨/order          (${r.orderErrors.length}): ${ids(r.orderErrors)}');
+    dlog('ظ†ط·ظ‚/pronunciation    (${r.pronunciations.length}): ${ids(r.pronunciations)}');
+    dlog('طھط£ط®ط± طھط¹ط±ظپ/asrLag     (${r.asrLag.length}): ${ids(r.asrLag)} [not scored]');
     dlog('perAyah: ${r.perAyah.map((a) => '${a.surah}:${a.ayah}='
         '${(a.accuracy * 100).round()}%(${a.errorWords}/${a.totalWords})').toList()}');
     dlog('========================================================');
@@ -379,7 +390,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
 
   void _feedWrong() {
     final asr = _asr;
-    if (asr is FakeAsrService) asr.emit(const AsrResult('زقمون', 0.9));
+    if (asr is FakeAsrService) asr.emit(const AsrResult('ط²ظ‚ظ…ظˆظ†', 0.9));
   }
 
   void _feedUnclear() {
@@ -407,10 +418,10 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title ??
-            'تسميع · ${_surahLabel.isNotEmpty ? _surahLabel : 'صفحة ${widget.pageNumber}'}'),
+            'طھط³ظ…ظٹط¹ آ· ${_surahLabel.isNotEmpty ? _surahLabel : 'طµظپط­ط© ${widget.pageNumber}'}'),
         actions: [
           IconButton(
-            tooltip: _isPaused ? 'استئناف' : 'إيقاف مؤقت',
+            tooltip: _isPaused ? 'ط§ط³طھط¦ظ†ط§ظپ' : 'ط¥ظٹظ‚ط§ظپ ظ…ط¤ظ‚طھ',
             icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
             onPressed: (_finishing || _controller.status == RecitationStatus.completed)
                 ? null
@@ -418,7 +429,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           ),
           TextButton(
             onPressed: _finishing ? null : _finish,
-            child: const Text('إنهاء'),
+            child: const Text('ط¥ظ†ظ‡ط§ط،'),
           ),
         ],
       ),
@@ -433,7 +444,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               flashPosition: _flashPos,
               surahName: _surahLabel,
               juz: _juz,
-              // The Scaffold AppBar is the single top bar — avoid a duplicate.
+              // The Scaffold AppBar is the single top bar â€” avoid a duplicate.
               showTopBar: false,
             ),
           ),
@@ -450,34 +461,34 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
                     if (_isFake) ...[
                       FilledButton.tonal(
                         onPressed: _feedCorrect,
-                        child: const Text('محاكاة: نطق صحيح'),
+                        child: const Text('ظ…ط­ط§ظƒط§ط©: ظ†ط·ظ‚ طµط­ظٹط­'),
                       ),
                       FilledButton.tonal(
                         onPressed: _feedWrong,
-                        child: const Text('محاكاة: نطق خطأ'),
+                        child: const Text('ظ…ط­ط§ظƒط§ط©: ظ†ط·ظ‚ ط®ط·ط£'),
                       ),
                       OutlinedButton(
                         onPressed: _feedUnclear,
-                        child: const Text('محاكاة: صوت غير واضح'),
+                        child: const Text('ظ…ط­ط§ظƒط§ط©: طµظˆطھ ط؛ظٹط± ظˆط§ط¶ط­'),
                       ),
                     ],
                     OutlinedButton(
                       onPressed: () {
                         _controller.revealNextWord();
-                        dlog('revealNextWord → cursor=${_controller.cursor} '
+                        dlog('revealNextWord â†’ cursor=${_controller.cursor} '
                             '(mic streaming continues uninterrupted)');
                         _refresh();
                       },
-                      child: const Text('إظهار الكلمة التالية'),
+                      child: const Text('ط¥ط¸ظ‡ط§ط± ط§ظ„ظƒظ„ظ…ط© ط§ظ„طھط§ظ„ظٹط©'),
                     ),
                     OutlinedButton(
                       onPressed: () {
                         _controller.revealFullAyah();
-                        dlog('revealFullAyah → cursor=${_controller.cursor} '
+                        dlog('revealFullAyah â†’ cursor=${_controller.cursor} '
                             '(mic streaming continues uninterrupted)');
                         _refresh();
                       },
-                      child: const Text('إظهار الآية كاملة'),
+                      child: const Text('ط¥ط¸ظ‡ط§ط± ط§ظ„ط¢ظٹط© ظƒط§ظ…ظ„ط©'),
                     ),
                   ],
                 ),
