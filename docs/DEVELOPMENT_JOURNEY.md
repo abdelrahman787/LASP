@@ -243,7 +243,21 @@
      ويطبع النص + RTF. **نجح**: نسخ القرآن بدقّة، RTF ≈ 0.055.
    - **Gate 1** (على الجهاز): شاشة Flutter throwaway
      (`lib/dev/gate1_main.dart`) تحمّل النموذج في sherpa وتنسخ المقطع.
-     الحالة: النموذج اتحمّل، والعائق الوحيد كان `tokens.txt` (شوف #1).
+     الحالة: النموذج اتحمّل، والعائق الأول كان `tokens.txt` (شوف #1).
+7. **انهيار SIGSEGV عند فك ترميز مقطع طويل (offline single-pass)** — بعد
+   إصلاح الـ tokens، فك ترميز المقطع كامل (104 ثانية) في مرّة واحدة عمل
+   **SIGSEGV** جوّه `SherpaOnnxDecodeOfflineStream` على arm64. اتأكّد إن
+   الـ buffer سليم (sherpa نفسه قراه بـ `readWave` بسعة سليمة). الفرضية:
+   فك ترميز offline لمقطع طويل بيتعدّى ميزانية الذاكرة على الموبايل —
+   ونماذج FastConformer دي متظبّطة أصلًا على نطق قصير، وتصميمنا الحقيقي
+   بيبثّ chunks قصيرة. الحل في الـ harness: فحص أول 8 ثواني كـ probe،
+   وبعدين لفّ على المقطع كامل في نوافذ 8 ثواني (`_kChunkSamples =
+   16000*8`، **UNVERIFIED** يتظبّط في Phase 3) مع fallback تلقائي لـ
+   recognizer جديد لكل chunk لو حصل خطأ Dart قابل للالتقاط. ملاحظة FFI:
+   الـ SIGSEGV الأصلي بيقتل العملية قبل ما Dart يلتقطه، فأسطر
+   `print('[GATE1] …')` قبل الـ decode هي الناجية في `adb logcat`.
+   درس: **مفيش normalize_type في `FeatureConfig` من Dart** — النموذج
+   بيقراها (`per_feature`) من الـ ONNX metadata في C++، مش من Dart.
 
 ---
 
