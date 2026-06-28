@@ -409,7 +409,7 @@ void _workerMain(_WorkerInit init) {
         if (raw is List) {
           var i = 0;
           void visit(dynamic v) {
-            if (v is List) { for (final x in v) visit(x); }
+            if (v is List) { for (final x in v) { visit(x); } }
             else if (i < dest.length) { dest[i++] = (v as num).toDouble(); }
           }
           visit(raw);
