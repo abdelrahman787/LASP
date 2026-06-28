@@ -100,7 +100,79 @@ harness, scoring fix, CI, and the docs — these are **not** part of PR #1.)
 
 ---
 
-## 5. Why It Was Closed (interpretation)
+## 5. Problems & Fixes (across the experiment)
+
+Reconstructed from the commit history — the concrete bugs we hit and how each
+was resolved. Split into "inside PR #1" and "after close (the ASR model
+experiment)".
+
+### 5.1 Inside PR #1 (the app build)
+
+| # | Problem (symptom) | Root cause | Fix |
+|---|---|---|---|
+| 1 | Android `assembleDebug` fails to compile | `record` 5.x pulled an inconsistent federated plugin set | Bump `record` → `^7.1.0` (self-consistent 2.x set) |
+| 2 | Last word of ayah unrecognized; next ayah "dead" after Reveal Next Word; MediaCodec churn (`0 chunks`, `MPEG4Writer Stop`) | File-per-chunk recorder stopped/restarted every ~3 s → mic OFF during upload, words cut at boundaries | Rewrite to **one continuous 16 kHz PCM stream** + overlapping windows (3 s window / 2 s emit, 1 s overlap) + RMS silence gate |
+| 3 | Cursor stuck at `مالك` (false substitution, 0 accepted) | Normalizer **stripped** dagger-alef U+0670 (`مَٰلِك`→`ملك`) while Whisper output full alef (`مالك`) → levRatio 0.25 > 0.20 | Map U+0670 → full alef (0627) in unification instead of stripping; regression test |
+| 4 | A clean utterance showed a non-null error in the debug log | `lastError` was never cleared, surfaced the last error *ever* | Clear `_lastError` at the start of each utterance (report data was never actually corrupted) |
+| 5 | Cursor gets stuck, needed manual Reveal Full Ayah | No automatic recovery | **Re-anchor recovery**: `findBestAnchor` scans the whole scope; jump after N stuck utterances |
+| 6 | Re-anchor jump left skipped words shown as "nothing wrong" | Only a generic skip marker was logged | Log a **forget** for every word in the skipped `[oldCursor, anchor)` range |
+| 7 | One word appeared in 3 contradictory buckets (substitution + order + forget) | Every ladder entry routed to a bucket | **Cross-bucket dedup**: pick the last-logged error per word as the single display winner |
+| 8 | Seeder won't build on Windows/Node 24 | `better-sqlite3` needs a C++ toolchain | Switch to built-in `node:sqlite` (zero native deps) |
+| 9 | QCF V2 fonts 404 for all pages | `{page}` not zero-padded (files are `QCF2001..604`) | `{page3}` zero-padded placeholder + self-diagnosing URL print |
+| 10 | "ListTile background/ink may be invisible" assertion in glass cards | Glass fill painted by a Container between Material and child | Paint glass fill + border via the inner `Material` itself; InkWell child |
+| 11 | Mushaf line horizontal `RenderFlex` overflow | Fixed font size didn't fit dense lines | Measure each line (`TextPainter`), shrink font to fit (×0.97 safety), reserve cursor border, `TextScaler.noScaling` |
+| 12 | Reader frozen on page 1 | `ref.read` of repo once in `initState` froze the 1-page fallback in a race | Watch `quranDataProvider` (`AsyncValue`) in `build`; build PageView from resolved 604 pages |
+| 13 | Common word recurring far later misclassified as `order` not `substitution` | Unbounded order look-ahead over a full-page scope | Bound order look-ahead to an 8-word window; regression test |
+| 14 | `ingestSession` wrote `0:0:0` garbage; N gets + N upserts | No id validation; per-item writes | Validate via `parseWordId`; batched `getMany` + `upsertAll` (WriteBatch, 30/req) |
+| 15 | Worker ASR call could hang | No timeout | 15 s hard timeout → treated as ASR failure (empty result) |
+
+### 5.2 After close — the ASR model experiment (current branch)
+
+| # | Problem | Root cause | Fix / status |
+|---|---|---|---|
+| 16 | Whisper batch latency (3-line reveal delay) + 2 s garbling + 6-thread regression | Whisper is **non-streaming**; tuning can't fix the structural batch constraint | **Switch model** to FastConformer-CTC (`Saboorhsn/quran-stt-onnx`), streaming + Quran-trained (LOCKED) |
+| 17 | sherpa refuses to load: needs `<blk>`/`<eps>`/`<blank>` | `tokens.txt` ships 1024 lines but `vocab_size = 1025` (blank id 1024 omitted) | Idempotent `tools/asr/fix_tokens_blank.py` appends `<blk> 1024` |
+| 18 | Predicted: missing ONNX metadata | (prediction was wrong) | Metadata **already present** (`subsampling_factor=4`, `vocab_size=1025`, `normalize_type=per_feature`); `add_sherpa_metadata.py` kept as unused fallback |
+| 19 | `SIGSEGV` decoding the full 104 s clip in one pass (arm64) | Long single-pass offline decode overruns phone memory | **Chunked decode** (8 s windows) + **Variant B** (fresh recognizer/stream per chunk, freed after each) |
+| 20 | Unread ayahs scored 100% | Un-attempted words recorded nothing | Inject **confirmed forgets** for remaining scope via the controller's public reveal funnel; 2 tests |
+| 21 | Arabic UI text corrupted in source | An editor/tool re-encoded the file | Restore commit; ongoing encoding-fragility risk (see `CODEBASE_ANALYSIS.md` §6.6) |
+
+---
+
+## 6. Latest State Reached in the Experiment
+
+Where the ASR experiment stands **right now** on the branch:
+
+- **Live ASR path = `SherpaOnnxAsrService`** (NeMo FastConformer-CTC int8),
+  selected by `kUseSherpaOnDeviceAsr = true` in `providers.dart`. It runs on a
+  **background isolate**, is **VAD-segmented** (Silero), uses **Variant B**
+  per-chunk decode, carries the capture-audit + flush discipline, and **logs RTF
+  per chunk** with the `[ASR]` tag.
+- **Gate 0 (PC): PASSED** — accurate Quran transcription at **RTF ≈ 0.055**.
+- **Gate 1 (device): partially through** —
+  - ✅ model loads (metadata present),
+  - ✅ tokens blocker fixed (`fix_tokens_blank.py`),
+  - ✅ long-decode `SIGSEGV` mitigated via chunking/Variant B,
+  - 🔴 **a clean end-to-end on-device transcription has not been reported back
+    yet** — this is the immediate next step.
+- **Live but UNVERIFIED constants** (the "GATE TEST" values): `_kMaxSpeechDuration
+  = 20.0` (was 3.0), `_kSegmentOverlap = 0.0` (was 0.6), `_kChunkSamples = 8 s`,
+  and **confidence hardcoded to 0.85**. These need an on-device sweep before
+  locking.
+- **Tests:** 128 core tests pass; core `dart analyze` clean. (The Flutter ASR
+  service / isolate / VAD have no automated coverage — they need a device.)
+- **Known open risks** (from `CODEBASE_ANALYSIS.md`): CI likely broken (`dart` at
+  a Flutter root), `lib/firebase_options.dart` tracked as a secret, no graceful
+  fallback when model assets are missing, and three coexisting ASR backends.
+
+**One-line status:** the on-device NeMo-CTC pipeline is **built and wired**, the
+two hard blockers (tokens + SIGSEGV) are **solved**, and we are waiting on **one
+clean Gate-1 transcription run on the Motorola** before tuning the provisional
+constants and starting to remove the old Whisper path.
+
+---
+
+## 7. Why It Was Closed (interpretation)
 
 No comment or review was recorded, so the reason isn't documented in the PR. The
 evidence points to:
@@ -116,7 +188,7 @@ of the work (the work continues on the branch).
 
 ---
 
-## 6. Implications & Recommendations
+## 8. Implications & Recommendations
 
 ### Implications
 - **`main` is empty and unprotected by history.** Everything of value is on one
@@ -141,7 +213,7 @@ of the work (the work continues on the branch).
 
 ---
 
-## 7. Verification Status
+## 9. Verification Status
 
 | Claim | How verified |
 |---|---|
