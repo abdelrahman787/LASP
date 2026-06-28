@@ -30,9 +30,11 @@ assets/quran/*.sqlite-wal
 assets/quran/fonts/*
 !assets/quran/fonts/.gitkeep
 
-# On-device ASR model (built locally via tools/asr/export_onnx.py)
+# On-device ASR models (download locally; only .gitkeep tracked)
 assets/models/tarteel/*
 !assets/models/tarteel/.gitkeep
+assets/models/streaming/*
+!assets/models/streaming/.gitkeep
 tools/asr/_work/
 tools/asr/__pycache__/
 # Secrets — NEVER commit

@@ -44,9 +44,12 @@ flutter:
     # back to FakeQuranRepository if these aren't present.
     - assets/quran/
     - assets/quran/fonts/
-    # On-device ASR model (built locally by tools/asr/export_onnx.py; gitignored
-    # except .gitkeep — the app falls back to GroqAsrService if absent).
+    # Offline CTC model (Gate-1 verified; gitignored except .gitkeep).
     - assets/models/tarteel/
+    # Streaming Transducer model — Muno459/fastconformer-quran-streaming
+    # (encoder.onnx, decoder.onnx, joiner.onnx, tokens.txt; gitignored except
+    # .gitkeep). App falls back to SherpaOnnxAsrService if absent.
+    - assets/models/streaming/
     # Gate-1 / Gate-0 verification clip (16 kHz mono PCM16). Gitignored except
     # .gitkeep — drop your verified ayah16k.wav here to run lib/dev/gate1_main.dart.
     - assets/test_audio/
