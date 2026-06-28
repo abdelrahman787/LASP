@@ -20,7 +20,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final l = L10n.of(context);
+    final l = L10n.of(context)!;
     final tabs = [
       PlaceholderScreen(title: l.homeTitle),
       PlaceholderScreen(title: l.navPlans),

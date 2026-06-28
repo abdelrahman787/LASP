@@ -17,7 +17,7 @@ class QuranTasmee3App extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
 
     return MaterialApp(
-      onGenerateTitle: (ctx) => L10n.of(ctx).appTitle,
+      onGenerateTitle: (ctx) => L10n.of(ctx)!.appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

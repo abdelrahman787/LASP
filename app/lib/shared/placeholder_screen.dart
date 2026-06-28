@@ -8,7 +8,7 @@ class PlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l = L10n.of(context);
+    final l = L10n.of(context)!;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: Center(
