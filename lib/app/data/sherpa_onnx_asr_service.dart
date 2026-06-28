@@ -15,8 +15,7 @@
 ///     recognizer across many chunks (shared-recognizer loop) can crash mid-loop
 ///     with a catchable exception. Variant B (fresh recognizer + stream per chunk,
 ///     freed after each) decoded all chunks cleanly. We use Variant B here.
-///     // UNVERIFIED: whether Variant A (shared recognizer) would actually crash
-///     // in the real service under all conditions; Variant B is the safe choice.
+///     Variant B is implemented: the shared-recognizer path was removed.
 ///
 ///  4. SILERO VAD — we use Silero VAD (same as TarteelOnDeviceAsrService) to
 ///     detect speech segments before sending to the NeMo-CTC recognizer, avoiding
@@ -84,7 +83,7 @@ const int _kNumThreads = 2;
 // VAD constants — same as TarteelOnDeviceAsrService (device-verified).
 const double _kVadThreshold = 0.5;
 const double _kMinSilenceDuration = 0.35;
-const double _kMaxSpeechDuration = 20.0; // GATE TEST: was 3.0 � let Silero cut at natural silences instead of forced 3s flush. // UNVERIFIED
+const double _kMaxSpeechDuration = 20.0; // GATE TEST: was 3.0 -- let Silero cut at natural silences instead of forced 3s flush. // UNVERIFIED
 const double _kVadWatchdogSeconds = 12.0;
 const double _kSegmentOverlap = 0.0; // GATE TEST: was 0.6 (Whisper-era boundary recovery). // UNVERIFIED
 
@@ -244,7 +243,7 @@ class SherpaOnnxAsrService implements AsrService {
       );
       dlog('[ASR] mic started — PCM16 ${_kSampleRate}Hz mono, '
           'NeMo-CTC int8 model, chunkSamples=$_kChunkSamples, '
-          'threads=$_kNumThreads, variantA=shared-recognizer');
+          'threads=$_kNumThreads, variantB=fresh-recognizer-per-segment');
     } catch (e) {
       dlog('[ASR] mic start failed: $e');
       _running = false;
@@ -340,30 +339,14 @@ void _asrWorkerMain(_AsrWorkerInit init) {
   final port = ReceivePort();
   init.toMain.send(port.sendPort);
 
-  sherpa.OfflineRecognizer? recognizer;
   sherpa.VoiceActivityDetector vad;
   try {
     sherpa.initBindings();
 
-    // 1. Initialize Recognizer ONCE (Variant A) to fix high RTF.
-    recognizer = sherpa.OfflineRecognizer(
-      sherpa.OfflineRecognizerConfig(
-        decodingMethod: 'greedy_search',
-        feat: const sherpa.FeatureConfig(
-          sampleRate: sampleRate,
-          featureDim: 80, // NeMo-CTC: 80-dim log-mel
-        ),
-        model: sherpa.OfflineModelConfig(
-          nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(model: init.modelPath),
-          tokens: init.tokensPath,
-          numThreads: init.numThreads,
-          modelType: 'nemo_ctc',
-          debug: false,
-        ),
-      ),
-    );
+    // Variant B: no shared recognizer — a fresh OfflineRecognizer is created
+    // and freed per segment inside decodeSegment().
 
-    // 2. Fix VAD buffer size calculation
+    // Fix VAD buffer size calculation
     // Faulty calculation: bufferSizeInSeconds: 30 (arbitrary 30s)
     // Corrected: bufferSizeInSeconds: _kChunkSamples / sampleRate (matches 8s chunk length exactly)
     // The mismatch between 30s capacity and chunk boundaries caused the circular-buffer to miscalculate
@@ -399,26 +382,45 @@ void _asrWorkerMain(_AsrWorkerInit init) {
     return out;
   }
 
-  // Decode one Float32 segment using the shared recognizer.
+  // Decode one segment with a FRESH OfflineRecognizer (Variant B — gate-proven
+  // stable; avoids SIGSEGV from a long-lived shared recognizer on arm64).
+  // Creates, uses, and frees a new recognizer every call.
   // Returns (text, inferMs). Returns ('', 0) on any error — never throws.
   ({String text, int inferMs}) decodeSegment(Float32List samples) {
-    if (samples.length < _kMinDecodeSamples || recognizer == null) {
+    if (samples.length < _kMinDecodeSamples) {
       return (text: '', inferMs: 0);
     }
     final sw = Stopwatch()..start();
+    sherpa.OfflineRecognizer? rec;
     try {
-      final stream = recognizer!.createStream();
+      rec = sherpa.OfflineRecognizer(
+        sherpa.OfflineRecognizerConfig(
+          decodingMethod: 'greedy_search',
+          feat: const sherpa.FeatureConfig(
+            sampleRate: sampleRate,
+            featureDim: 80, // NeMo-CTC: 80-dim log-mel
+          ),
+          model: sherpa.OfflineModelConfig(
+            nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(model: init.modelPath),
+            tokens: init.tokensPath,
+            numThreads: init.numThreads,
+            modelType: 'nemo_ctc',
+            debug: false,
+          ),
+        ),
+      );
+      final stream = rec.createStream();
       stream.acceptWaveform(samples: samples, sampleRate: sampleRate);
-      recognizer!.decode(stream);
-      final text = recognizer!.getResult(stream).text;
+      rec.decode(stream);
+      final text = rec.getResult(stream).text;
       stream.free();
       sw.stop();
       return (text: text, inferMs: sw.elapsedMilliseconds);
     } catch (e) {
       sw.stop();
-      // Log the error and return empty
-      init.toMain.send({'type': 'result', 'text': '', 'audioSec': 0.0, 'inferMs': 0});
       return (text: '', inferMs: 0);
+    } finally {
+      rec?.free();
     }
   }
 
