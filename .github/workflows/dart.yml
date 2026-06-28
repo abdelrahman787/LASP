@@ -1,42 +1,50 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+# CI for Quran Tasmee3.
+#
+# Two jobs:
+#  - core: the pure-Dart engine (packages/quran_tasmee3_core) — plain `dart`,
+#    no Flutter needed. This is the source of truth and must always be green.
+#  - app:  the Flutter app — `flutter analyze` + `flutter test`. Runs with the
+#    Flutter SDK (the repo root is a Flutter app, so plain `dart pub get` here
+#    fails — that was the previous CI bug).
+#
+# Third-party actions (subosito/flutter-action) are governed by their own terms.
 
-name: Dart
+name: CI
 
 on:
   push:
-    branches: [ "claude/peaceful-cannon-ktbz8d" ]
+    branches: [ "claude/peaceful-cannon-ktbz8d", "main" ]
   pull_request:
-    branches: [ "claude/peaceful-cannon-ktbz8d" ]
+    branches: [ "claude/peaceful-cannon-ktbz8d", "main" ]
 
 jobs:
-  build:
+  core:
+    name: Pure-Dart core (analyze + test)
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: packages/quran_tasmee3_core
     steps:
       - uses: actions/checkout@v4
-
-      # Note: This workflow uses the latest stable version of the Dart SDK.
-      # You can specify other versions if desired, see documentation here:
-      # https://github.com/dart-lang/setup-dart/blob/main/README.md
-      # - uses: dart-lang/setup-dart@v1
       - uses: dart-lang/setup-dart@9a04e6d73cca37bd455e0608d7e5092f881fd603
-
       - name: Install dependencies
         run: dart pub get
-
-      # Uncomment this step to verify the use of 'dart format' on each commit.
-      # - name: Verify formatting
-      #   run: dart format --output=none --set-exit-if-changed .
-
-      # Consider passing '--fatal-infos' for slightly stricter analysis.
-      - name: Analyze project source
+      - name: Analyze
         run: dart analyze
-
-      # Your project will need to have tests in test/ and a dependency on
-      # package:test for this step to succeed. Note that Flutter projects will
-      # want to change this to 'flutter test'.
-      - name: Run tests
+      - name: Test
         run: dart test
+
+  app:
+    name: Flutter app (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
