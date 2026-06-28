@@ -40,7 +40,12 @@ import '../debug.dart';
 // ---------------------------------------------------------------------------
 // Asset paths
 // ---------------------------------------------------------------------------
-const String _kModelAsset  = 'assets/models/streaming/model_streaming_with_encoder.q8.onnx';
+// sherpa-onnx requires NeMo metadata (vocab_size, subsampling_factor=4).
+// Run: python tools/asr/add_sherpa_metadata.py \
+//   --in  assets/models/streaming/model_streaming_with_encoder.q8.onnx \
+//   --out assets/models/streaming/model_streaming_sherpa.onnx \
+//   --vocab-size 1025 --subsampling-factor 4
+const String _kModelAsset  = 'assets/models/streaming/model_streaming_sherpa.onnx';
 const String _kTokensAsset = 'assets/models/streaming/tokens.txt';
 const String _kVadAsset    = 'assets/models/tarteel/silero_vad.onnx';
 
