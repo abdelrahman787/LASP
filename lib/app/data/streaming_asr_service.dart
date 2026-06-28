@@ -298,7 +298,7 @@ void _workerMain(_WorkerInit init) {
     final opts = OrtSessionOptions()
       ..setIntraOpNumThreads(init.numThreads)
       ..setInterOpNumThreads(1);
-    session = OrtSession.fromFile(init.modelPath, opts);
+    session = OrtSession.fromFile(File(init.modelPath), opts);
 
     // Load tokens.txt for CTC decoder.
     final tokensContent = File(init.tokensPath).readAsStringSync();
@@ -341,12 +341,10 @@ void _workerMain(_WorkerInit init) {
   // ---- chunk inference -------------------------------------------------------
   final sw = Stopwatch();
   var totalInferMs = 0;
-  var totalAudioSamples = 0;
 
   // Accumulated logprobs for the current VAD segment [T_total * V].
   final logprobBuf  = <double>[];
   var   logprobT    = 0;
-  const vocabSize   = 1025;
 
   void inferChunk(Float32List chunk) {
     if (chunk.isEmpty) return;
@@ -387,10 +385,9 @@ void _workerMain(_WorkerInit init) {
       tCacheLen.release();
       sw.stop();
       totalInferMs += sw.elapsedMilliseconds;
-      totalAudioSamples += chunk.length;
     }
 
-    if (outputs == null || outputs.isEmpty) return;
+    if (outputs.isEmpty) return;
 
     // Extract logprobs [1, T_out, 1025] → flatten to T_out*1025.
     try {
@@ -437,8 +434,7 @@ void _workerMain(_WorkerInit init) {
     logprobBuf.clear();
     logprobT = 0;
     resetCache();
-    totalAudioSamples = 0;
-    totalInferMs      = 0;
+    totalInferMs = 0;
 
     // Append trailing silence so the model closes open tokens.
     final full = Float32List(seg.length + _kTrailingSilence);
@@ -448,7 +444,7 @@ void _workerMain(_WorkerInit init) {
     var offset = 0;
     while (offset < full.length) {
       final end   = (offset + _kChunkSamples).clamp(0, full.length);
-      final chunk = full.sublist(offset, end) as Float32List;
+      final chunk = full.sublist(offset, end);
       inferChunk(chunk);
       offset = end;
 

@@ -47,7 +47,7 @@ class MelExtractor {
   List<Float32List> extract(Float32List samples) {
     final nFrames = math.max(0, (samples.length - winLen) ~/ hopLen + 1);
     final frames  = List<Float32List>.generate(nFrames, (_) => Float32List(nMels));
-    final halfFft = nFft ~/ 2 + 1;
+    const halfFft = nFft ~/ 2 + 1;
     final power   = Float64List(halfFft);
 
     for (var t = 0; t < nFrames; t++) {
@@ -157,7 +157,7 @@ class MelExtractor {
 
   static List<Float64List> _buildMelFb(
       int nMels, int nFft, int sr, double fMin, double fMax) {
-    final halfFft = nFft ~/ 2 + 1;
+    const halfFft = nFft ~/ 2 + 1;
 
     double hzToMel(double hz) => 2595.0 * math.log(1.0 + hz / 700.0) / math.ln10;
     double melToHz(double mel) => 700.0 * (math.pow(10.0, mel / 2595.0) - 1.0);
