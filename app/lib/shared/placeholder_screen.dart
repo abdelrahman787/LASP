@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:quran_tasmee3/l10n/app_localizations.dart';
 
 /// Temporary screen for not-yet-migrated tabs. Replaced as each feature lands.
 class PlaceholderScreen extends StatelessWidget {
