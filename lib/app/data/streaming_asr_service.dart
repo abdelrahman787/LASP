@@ -406,7 +406,7 @@ void _workerMain(_WorkerInit init) {
     } else if (msg == 'reset') {
       try {
         vad.flush();
-        while (!vad.isEmpty()) vad.pop();
+        while (!vad.isEmpty()) { vad.pop(); }
       } catch (_) {}
       samplesSinceSegment = 0;
     } else if (msg == 'flush') {
@@ -420,4 +420,3 @@ void _workerMain(_WorkerInit init) {
     }
   });
 }
-;

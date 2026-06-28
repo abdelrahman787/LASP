@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
+// ignore_for_file: avoid_print
 void main() {
   sherpa.initBindings();
 
-  final encoder = 'assets/models/tarteel/encoder.onnx';
-  final decoder = 'assets/models/tarteel/decoder.onnx';
-  final tokens = 'assets/models/tarteel/tokens.txt';
-  final audioFile = 'assets/test_audio/ayah16k.wav';
+  const encoder = 'assets/models/tarteel/encoder.onnx';
+  const decoder = 'assets/models/tarteel/decoder.onnx';
+  const tokens = 'assets/models/tarteel/tokens.txt';
+  const audioFile = 'assets/test_audio/ayah16k.wav';
 
   print('[CMP] Initializing Tarteel Whisper model...');
   final recognizer = sherpa.OfflineRecognizer(
