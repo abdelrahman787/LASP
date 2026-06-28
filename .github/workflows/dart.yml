@@ -44,6 +44,18 @@ jobs:
           channel: stable
       - name: Install dependencies
         run: flutter pub get
+      - name: Generate stubs for gitignored files
+        run: |
+          # firebase_options.dart is gitignored (no real credentials committed).
+          # Generate a minimal stub so flutter analyze can resolve the import.
+          cat > lib/firebase_options.dart << 'STUB'
+          // CI stub — no credentials. Real file is gitignored.
+          import 'package:firebase_core/firebase_core.dart';
+          abstract class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform =>
+                throw UnimplementedError('CI stub — not for runtime use');
+          }
+          STUB
       - name: Analyze
         run: flutter analyze
       - name: Test
