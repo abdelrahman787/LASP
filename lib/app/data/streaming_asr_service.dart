@@ -90,7 +90,7 @@ class StreamingAsrService implements AsrService {
     if (_toWorker   != null) return true;
     if (_initFailed)          return false;
     try {
-      final model  = await _copyAsset(_kModelAsset,  'streaming_model.onnx');
+      final model  = await _copyAsset(_kModelAsset,  'streaming_model_final.onnx');
       final tokens = await _copyAsset(_kTokensAsset, 'streaming_tokens.txt');
       final vad    = await _copyAsset(_kVadAsset,    'streaming_silero_vad.onnx');
 
