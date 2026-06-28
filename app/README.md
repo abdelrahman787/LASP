@@ -19,9 +19,9 @@ cd app
 flutter create --project-name quran_tasmee3 --org com.example .
 
 # 2) Restore the authored files that step 1 clobbered (pubspec, main.dart,
-#    analysis_options, .gitignore, README) back to the versions in git.
+#    analysis_options, .gitignore, README, the smoke test) back to git.
 #    The new untracked platform folders are kept.
-git checkout -- pubspec.yaml analysis_options.yaml .gitignore README.md lib/main.dart
+git checkout -- pubspec.yaml analysis_options.yaml .gitignore README.md lib/main.dart test/widget_test.dart
 
 # 3) Resolve dependencies (also generates l10n from lib/l10n/*.arb).
 flutter pub get
