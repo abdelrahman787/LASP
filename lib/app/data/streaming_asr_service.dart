@@ -257,16 +257,21 @@ void _workerMain(_WorkerInit init) {
     sherpa.initBindings();
 
     recognizer = sherpa.OfflineRecognizer(
-      config: sherpa.OfflineRecognizerConfig(
+      sherpa.OfflineRecognizerConfig(
+        decodingMethod: 'greedy_search',
+        feat: const sherpa.FeatureConfig(
+          sampleRate: _kSampleRate,
+          featureDim: 80,
+        ),
         model: sherpa.OfflineModelConfig(
           nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(
             model: init.modelPath,
           ),
           tokens:     init.tokensPath,
           numThreads: init.numThreads,
+          modelType:  'nemo_ctc',
           debug:      false,
         ),
-        decodingMethod: 'greedy_search',
       ),
     );
 
