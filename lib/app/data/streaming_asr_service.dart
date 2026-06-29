@@ -246,36 +246,45 @@ Float32List _toFloat(Uint8List bytes) {
   return out;
 }
 
-/// Worker isolate: owns OfflineRecognizer + Silero VAD (both sherpa-onnx).
+/// Worker isolate: Silero VAD (sherpa-onnx) + fresh OfflineRecognizer per segment.
+///
+/// Gate-1 proved on arm64 (Motorola Edge 50) that a SHARED recognizer
+/// SIGSEGVs inside SherpaOnnxDecodeOfflineStream after the first segment.
+/// Variant B (fresh recognizer + stream per segment, freed after each) is
+/// stable and proven.  Model-load cost per segment is ~60–180 ms on this
+/// device — acceptable for a natural-pause triggered pipeline.
 void _workerMain(_WorkerInit init) {
   final port = ReceivePort();
   init.toMain.send(port.sendPort);
 
-  late sherpa.OfflineRecognizer recognizer;
   late sherpa.VoiceActivityDetector vad;
 
-  // ---- initialise sherpa-onnx -----------------------------------------------
+  // ---- build a fresh OfflineRecognizer (Variant B — one per segment) --------
+  sherpa.OfflineRecognizer _buildRecognizer() => sherpa.OfflineRecognizer(
+        sherpa.OfflineRecognizerConfig(
+          decodingMethod: 'greedy_search',
+          feat: const sherpa.FeatureConfig(
+            sampleRate: _kSampleRate,
+            featureDim: 80,
+          ),
+          model: sherpa.OfflineModelConfig(
+            nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(
+              model: init.modelPath,
+            ),
+            tokens:     init.tokensPath,
+            numThreads: init.numThreads,
+            modelType:  'nemo_ctc',
+            debug:      false,
+          ),
+        ),
+      );
+
+  // ---- initialise bindings + VAD (once) -------------------------------------
   try {
     sherpa.initBindings();
 
-    recognizer = sherpa.OfflineRecognizer(
-      sherpa.OfflineRecognizerConfig(
-        decodingMethod: 'greedy_search',
-        feat: const sherpa.FeatureConfig(
-          sampleRate: _kSampleRate,
-          featureDim: 80,
-        ),
-        model: sherpa.OfflineModelConfig(
-          nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(
-            model: init.modelPath,
-          ),
-          tokens:     init.tokensPath,
-          numThreads: init.numThreads,
-          modelType:  'nemo_ctc',
-          debug:      false,
-        ),
-      ),
-    );
+    // Probe: build one recognizer to validate the model loads, then free it.
+    _buildRecognizer().free();
 
     vad = sherpa.VoiceActivityDetector(
       config: sherpa.VadModelConfig(
@@ -298,18 +307,20 @@ void _workerMain(_WorkerInit init) {
     return;
   }
 
-  // ---- decode one segment ---------------------------------------------------
+  // ---- decode one segment (Variant B: fresh recognizer, freed after) --------
   final sw = Stopwatch();
 
   void decodeSegment(sherpa.SpeechSegment seg) {
     if (seg.samples.length < _kMinDecodeSamples) return;
 
     sw.reset(); sw.start();
-    final stream = recognizer.createStream();
+    final rec    = _buildRecognizer();
+    final stream = rec.createStream();
     stream.acceptWaveform(samples: seg.samples, sampleRate: _kSampleRate);
-    recognizer.decode(stream);
-    final result = recognizer.getResult(stream);
+    rec.decode(stream);
+    final result = rec.getResult(stream);
     stream.free();
+    rec.free();
     sw.stop();
 
     final text = result.text.trim();
