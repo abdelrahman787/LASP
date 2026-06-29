@@ -194,9 +194,9 @@ class StreamingAsrService implements AsrService {
         onError:      (Object e) => dlog('[ASR] stream error: $e'),
         cancelOnError: false,
       );
-      dlog('[ASR] streaming mic started — PCM16 ${_kSampleRate}Hz mono, '
+      dlog('[ASR] streaming mic started — PCM16 $_kSampleRate Hz mono, '
           'Q8 streaming NeMo-CTC via onnxruntime + rolling cache + Silero VAD, '
-          'chunk=${_kChunkSamples} VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
+          'chunk=$_kChunkSamples VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
     } catch (e) {
       dlog('[ASR] mic start failed: $e');
       _running = false;
@@ -363,7 +363,7 @@ void _workerMain(_WorkerInit init) {
       inferMs += sw.elapsedMilliseconds;
     }
 
-    if (outputs == null || outputs.isEmpty) return;
+    if (outputs.isEmpty) return;
 
     // Extract logprobs [1, T_out, 1025].
     try {
@@ -385,7 +385,7 @@ void _workerMain(_WorkerInit init) {
         if (raw is! List) return;
         var i = 0;
         void visit(dynamic v) {
-          if (v is List) { for (final x in v) visit(x); }
+          if (v is List) { for (final x in v) { visit(x); } }
           else if (i < dest.length) { dest[i++] = (v as num).toDouble(); }
         }
         visit(raw);
@@ -476,7 +476,7 @@ void _workerMain(_WorkerInit init) {
     } else if (msg == 'reset') {
       try {
         vad.flush();
-        while (!vad.isEmpty()) vad.pop();
+        while (!vad.isEmpty()) { vad.pop(); }
       } catch (_) {}
       resetCache();
       logprobBuf.clear(); logprobT = 0;
