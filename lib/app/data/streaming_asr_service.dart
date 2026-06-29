@@ -61,7 +61,7 @@ const int    _kMinDecodeSamples = 3200;   // skip sub-200ms artifacts
 const int    _kTrailingSilence  = 6400;   // 400ms appended to close open tokens
 
 // Energy VAD — pure Dart, no native libs required.
-const double _kEnergyThreshold   = 0.02;  // RMS in float32 [-1,1] range
+const double _kEnergyThreshold   = 0.005; // RMS in float32 [-1,1]; tune if VAD misses speech
 const int    _kVoiceOnChunks     = 2;     // consecutive loud chunks to start
 const int    _kSilenceChunks     = 6;     // consecutive quiet chunks to end
 const int    _kLookbackChunks    = 2;     // pre-onset chunks to include in seg
@@ -313,6 +313,7 @@ void _workerMain(_WorkerInit init) {
   final _lookback  = <Float32List>[];   // pre-onset ringbuffer
   final _speechBuf = <Float32List>[];
   var _speechSamples = 0;
+  var _rmsLogCount = 0; // rate-limit RMS logging (every 10 chunks)
 
   // ---- CTC accumulator ------------------------------------------------------
   final logprobBuf = <double>[];
@@ -454,6 +455,10 @@ void _workerMain(_WorkerInit init) {
   // ---- energy VAD: accept one float32 chunk ---------------------------------
   void acceptChunk(Float32List chunk) {
     final energy = _rms(chunk);
+    _rmsLogCount++;
+    if (_rmsLogCount % 10 == 1) {
+      dlog('[ASR-vad] RMS=${energy.toStringAsFixed(4)} state=$_vadState thresh=$_kEnergyThreshold');
+    }
 
     if (_vadState == _VadState.silence) {
       // Maintain a short lookback so the speech onset isn't clipped.
