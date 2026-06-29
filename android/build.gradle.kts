@@ -19,14 +19,14 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Force all plugin/library subprojects to compileSdk ≥ 35 so that their
+// Force all library plugin subprojects to compileSdk 35 so that their
 // AndroidX transitive deps (which require 34+) do not fail metadata checks.
+// pluginManager.withPlugin fires at plugin-apply time, avoiding the
+// "already evaluated" error that afterEvaluate triggers.
 subprojects {
-    afterEvaluate {
-        extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
-            if ((compileSdkVersion?.removePrefix("android-")?.toIntOrNull() ?: 0) < 35) {
-                compileSdkVersion(35)
-            }
+    pluginManager.withPlugin("com.android.library") {
+        extensions.configure<com.android.build.gradle.LibraryExtension> {
+            compileSdk = 35
         }
     }
 }
