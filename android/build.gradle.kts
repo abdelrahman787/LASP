@@ -24,8 +24,8 @@ subprojects {
 // gradle.afterProject fires for every project AFTER its own build script
 // finishes, so it always wins over whatever compileSdk the plugin set.
 gradle.afterProject {
-    extensions.findByType<com.android.build.gradle.LibraryExtension>()?.run {
-        if (compileSdk < 35) compileSdk = 35
+    extensions.findByType<com.android.build.api.dsl.LibraryExtension>()?.run {
+        if ((compileSdk ?: 0) < 35) compileSdk = 35
     }
 }
 
