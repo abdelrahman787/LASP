@@ -180,16 +180,21 @@ class _GateTwoScreenState extends State<GateTwoScreen> {
             if (_partialText.isNotEmpty || _recording) ...[
               const Text('Live partial:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SelectableText(
-                  _partialText.isEmpty ? '(waiting for speech…)' : _partialText,
-                  style: const TextStyle(fontSize: 16),
-                  textDirection: TextDirection.rtl,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 120),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      _partialText.isEmpty ? '(waiting for speech…)' : _partialText,
+                      style: const TextStyle(fontSize: 16),
+                      textDirection: TextDirection.rtl,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
