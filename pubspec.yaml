@@ -29,8 +29,9 @@ dependencies:
   permission_handler: ^11.3.1      # SWAP 1: real ASR (mic permission)
   sqflite: ^2.3.3                  # SWAP 3: bundled Quran SQLite
   path_provider: ^2.1.4            # SWAP 3: copy bundled DB to a writable path
-  sherpa_onnx: ^1.10.30            # On-device ASR: NeMo FastConformer-CTC (offline NeMo-CTC + Silero VAD). Resolves to 1.13.3.
-  onnxruntime: ^1.2.0              # Direct ONNX inference with cache for streaming CTC. Duplicate libonnxruntime.so resolved via android/app/build.gradle.kts packagingOptions pickFirst.
+  # sherpa_onnx removed: its libonnxruntime.so conflicted with onnxruntime package;
+  # Silero VAD replaced by pure-Dart energy VAD (no native libs needed for VAD).
+  onnxruntime: ^1.2.0              # Direct ONNX inference with cache for streaming CTC.
   # flutter_local_notifications: ^17.2.3  # Review Plans Phase 6 reminders
 
 dev_dependencies:

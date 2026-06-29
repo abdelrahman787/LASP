@@ -8,27 +8,28 @@
 ///     cache_last_time        float32 [1, 17, 512,  8]  zero-init, carried forward
 ///     cache_last_channel_len int64   [1]               zero-init, carried forward
 ///   Outputs:
-///     [0] logprobs             float32 [1, T_out, 1025]
-///     [1] encoder_output       (ignored)
-///     [2] encoded_lengths      (ignored)
+///     [0] logprobs                 float32 [1, T_out, 1025]
+///     [1] encoder_output           (ignored)
+///     [2] encoded_lengths          (ignored)
 ///     [3] cache_last_channel_next  float32 [1, 17, 70, 512]
 ///     [4] cache_last_time_next     float32 [1, 17, 512,  8]
 ///     [5] cache_last_channel_next_len int64 [1]
 ///
-/// Pipeline:
-///   Silero VAD (sherpa-onnx) → speech segments
-///   per segment: reset cache → 200ms chunks → mel+CMVN → OrtSession (cache)
-///   → accumulate logprobs → CTC greedy decode → emit result
+/// VAD: pure-Dart energy-based (RMS per 200ms chunk, simple state machine).
+///   Silero VAD via sherpa_onnx was removed to avoid libonnxruntime.so conflict:
+///   sherpa bundles its own ORT .so; packagingOptions pickFirst picked the wrong
+///   copy, making libsherpa-onnx-c-api.so unable to resolve OrtGetApiBase.
 ///
 /// Why onnxruntime (not sherpa OfflineRecognizer):
 ///   model_int8.onnx + SherpaOnnxDecodeOfflineStream = SIGSEGV on Android 16
-///   (deterministic SEGV_ACCERR at offset +68, Q8 streaming model is unaffected).
-///   Using onnxruntime directly bypasses sherpa's decode path entirely.
+///   (deterministic SEGV_ACCERR at offset +68). Q8 streaming model + onnxruntime
+///   direct bypasses sherpa's decode path entirely.
 library;
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -36,7 +37,6 @@ import 'package:onnxruntime/onnxruntime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
-import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import 'package:quran_tasmee3_core/recitation/asr_service.dart';
 
@@ -50,23 +50,22 @@ import 'mel_features.dart';
 // ---------------------------------------------------------------------------
 const String _kModelAsset  = 'assets/models/streaming/model_streaming_with_encoder.q8.onnx';
 const String _kTokensAsset = 'assets/models/streaming/tokens.txt';
-const String _kVadAsset    = 'assets/models/tarteel/silero_vad.onnx';
 
 // ---------------------------------------------------------------------------
 // Tuning
 // ---------------------------------------------------------------------------
 const int    _kSampleRate       = 16000;
 const int    _kNumThreads       = 2;
-const int    _kChunkSamples     = 3200;  // 200ms per inference step
-const int    _kMinDecodeSamples = 3200;  // skip sub-200ms artifacts
-const int    _kTrailingSilence  = 6400;  // 400ms appended to close open tokens
+const int    _kChunkSamples     = 3200;   // 200ms per inference step
+const int    _kMinDecodeSamples = 3200;   // skip sub-200ms artifacts
+const int    _kTrailingSilence  = 6400;   // 400ms appended to close open tokens
 
-const double _kVadThreshold    = 0.4;   // lower threshold → catch more speech
-const double _kVadMinSilence   = 0.3;
-const double _kVadMinSpeech    = 0.2;
-const double _kVadMaxSpeech    = 5.0;   // 5s max → ≤ 2–3 ayah words
-
-const double _kWatchdogSeconds = 12.0;
+// Energy VAD — pure Dart, no native libs required.
+const double _kEnergyThreshold   = 0.02;  // RMS in float32 [-1,1] range
+const int    _kVoiceOnChunks     = 2;     // consecutive loud chunks to start
+const int    _kSilenceChunks     = 6;     // consecutive quiet chunks to end
+const int    _kLookbackChunks    = 2;     // pre-onset chunks to include in seg
+const int    _kMaxSpeechSamples  = 80000; // 5s → force segment even mid-speech
 
 // Cache tensor shapes (verified from model inspection).
 const List<int> _kCacheChannelShape = [1, 17, 70, 512];
@@ -95,7 +94,6 @@ class StreamingAsrService implements AsrService {
     try {
       final model  = await _copyAsset(_kModelAsset,  'ort_streaming_model.onnx');
       final tokens = await _copyAsset(_kTokensAsset, 'ort_streaming_tokens.txt');
-      final vad    = await _copyAsset(_kVadAsset,    'ort_streaming_vad.onnx');
 
       _fromWorker = ReceivePort();
       final ready = Completer<bool>();
@@ -128,8 +126,6 @@ class StreamingAsrService implements AsrService {
                 _finalizing = false;
                 _onResult?.call(AsrResult(text, text.isEmpty ? 0.0 : 0.85));
               }
-            case 'watchdog':
-              dlog('[ASR] watchdog — no VAD for ${msg['secs']}s');
           }
         }
       });
@@ -140,7 +136,6 @@ class StreamingAsrService implements AsrService {
           toMain:     _fromWorker!.sendPort,
           modelPath:  model,
           tokensPath: tokens,
-          vadPath:    vad,
           numThreads: _kNumThreads,
         ),
       );
@@ -195,8 +190,8 @@ class StreamingAsrService implements AsrService {
         cancelOnError: false,
       );
       dlog('[ASR] streaming mic started — PCM16 $_kSampleRate Hz mono, '
-          'Q8 streaming NeMo-CTC via onnxruntime + rolling cache + Silero VAD, '
-          'chunk=$_kChunkSamples VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
+          'Q8 streaming NeMo-CTC via onnxruntime + rolling cache + energy VAD, '
+          'chunk=$_kChunkSamples threads=$_kNumThreads');
     } catch (e) {
       dlog('[ASR] mic start failed: $e');
       _running = false;
@@ -248,13 +243,11 @@ class _WorkerInit {
   final SendPort toMain;
   final String   modelPath;
   final String   tokensPath;
-  final String   vadPath;
   final int      numThreads;
   const _WorkerInit({
     required this.toMain,
     required this.modelPath,
     required this.tokensPath,
-    required this.vadPath,
     required this.numThreads,
   });
 }
@@ -269,13 +262,20 @@ Float32List _toFloat(Uint8List bytes) {
   return out;
 }
 
+double _rms(Float32List samples) {
+  var sum = 0.0;
+  for (final s in samples) { sum += s * s; }
+  return math.sqrt(sum / samples.length);
+}
+
+enum _VadState { silence, speech }
+
 void _workerMain(_WorkerInit init) {
   final port = ReceivePort();
   init.toMain.send(port.sendPort);
 
-  late OrtSession            session;
-  late sherpa.VoiceActivityDetector vad;
-  late CtcGreedyDecoder      ctcDecoder;
+  late OrtSession       session;
+  late CtcGreedyDecoder ctcDecoder;
   final mel = MelExtractor();
 
   try {
@@ -287,22 +287,6 @@ void _workerMain(_WorkerInit init) {
 
     ctcDecoder = CtcGreedyDecoder.fromTokensTxt(
       File(init.tokensPath).readAsStringSync(),
-    );
-
-    sherpa.initBindings();
-    vad = sherpa.VoiceActivityDetector(
-      config: sherpa.VadModelConfig(
-        sileroVad: sherpa.SileroVadModelConfig(
-          model:              init.vadPath,
-          threshold:          _kVadThreshold,
-          minSilenceDuration: _kVadMinSilence,
-          minSpeechDuration:  _kVadMinSpeech,
-          maxSpeechDuration:  _kVadMaxSpeech,
-        ),
-        sampleRate: _kSampleRate,
-        numThreads: 1,
-      ),
-      bufferSizeInSeconds: 30,
     );
 
     init.toMain.send({'type': 'ready'});
@@ -322,7 +306,15 @@ void _workerMain(_WorkerInit init) {
     cacheChannelLen = Int64List(1);
   }
 
-  // ---- accumulator for current segment -------------------------------------
+  // ---- energy VAD state -----------------------------------------------------
+  var _vadState    = _VadState.silence;
+  var _voiceCount  = 0;
+  var _silenceCount = 0;
+  final _lookback  = <Float32List>[];   // pre-onset ringbuffer
+  final _speechBuf = <Float32List>[];
+  var _speechSamples = 0;
+
+  // ---- CTC accumulator ------------------------------------------------------
   final logprobBuf = <double>[];
   var   logprobT   = 0;
   var   inferMs    = 0;
@@ -333,20 +325,20 @@ void _workerMain(_WorkerInit init) {
     if (frames.isEmpty) return;
     mel.applyCmvn(frames, cmvnMean, cmvnStd);
     final T    = frames.length;
-    final feat = mel.toModelInput(frames); // [80 * T] flat, [1, 80, T] layout
+    final feat = mel.toModelInput(frames);
 
-    final tAudio    = OrtValueTensor.createTensorWithDataList(feat,            [1, 80, T]);
-    final tLen      = OrtValueTensor.createTensorWithDataList(Int64List.fromList([T]), [1]);
+    final tAudio    = OrtValueTensor.createTensorWithDataList(feat,                         [1, 80, T]);
+    final tLen      = OrtValueTensor.createTensorWithDataList(Int64List.fromList([T]),        [1]);
     final tCacheCh  = OrtValueTensor.createTensorWithDataList(cacheChannel,    _kCacheChannelShape);
     final tCacheTm  = OrtValueTensor.createTensorWithDataList(cacheTime,       _kCacheTimeShape);
     final tCacheLen = OrtValueTensor.createTensorWithDataList(cacheChannelLen, _kCacheLenShape);
 
     final inputs = <String, OrtValueTensor>{
-      'audio_signal':             tAudio,
-      'length':                   tLen,
-      'cache_last_channel':       tCacheCh,
-      'cache_last_time':          tCacheTm,
-      'cache_last_channel_len':   tCacheLen,
+      'audio_signal':           tAudio,
+      'length':                 tLen,
+      'cache_last_channel':     tCacheCh,
+      'cache_last_time':        tCacheTm,
+      'cache_last_channel_len': tCacheLen,
     };
 
     sw.reset(); sw.start();
@@ -385,8 +377,11 @@ void _workerMain(_WorkerInit init) {
         if (raw is! List) return;
         var i = 0;
         void visit(dynamic v) {
-          if (v is List) { for (final x in v) { visit(x); } }
-          else if (i < dest.length) { dest[i++] = (v as num).toDouble(); }
+          if (v is List) {
+            for (final x in v) { visit(x); }
+          } else if (i < dest.length) {
+            dest[i++] = (v as num).toDouble();
+          }
         }
         visit(raw);
       }
@@ -419,7 +414,6 @@ void _workerMain(_WorkerInit init) {
       inferChunk(chunk);
       offset = end;
 
-      // Emit partial after each chunk.
       if (logprobT > 0) {
         final lp      = Float32List.fromList(logprobBuf);
         final partial = ctcDecoder.decode(lp, logprobT);
@@ -430,8 +424,8 @@ void _workerMain(_WorkerInit init) {
     }
 
     if (logprobT > 0) {
-      final lp      = Float32List.fromList(logprobBuf);
-      final text    = ctcDecoder.decode(lp, logprobT);
+      final lp       = Float32List.fromList(logprobBuf);
+      final text     = ctcDecoder.decode(lp, logprobT);
       final audioSec = samples.length / _kSampleRate.toDouble();
       init.toMain.send({
         'type':     'result',
@@ -442,51 +436,81 @@ void _workerMain(_WorkerInit init) {
     }
   }
 
-  // ---- VAD drain (copy samples before pop to guard against native buffer reuse)
-  var samplesSinceSegment = 0;
-  final watchdogSamples   = (_kWatchdogSeconds * _kSampleRate).round();
+  // ---- flush current speech buffer as one segment ---------------------------
+  void flushSpeech() {
+    if (_speechBuf.isEmpty) return;
+    final total = _speechSamples;
+    final merged = Float32List(total);
+    var off = 0;
+    for (final c in _speechBuf) { merged.setAll(off, c); off += c.length; }
+    _speechBuf.clear();
+    _speechSamples = 0;
+    _vadState = _VadState.silence;
+    _voiceCount = 0;
+    _silenceCount = 0;
+    decodeSegment(merged);
+  }
 
-  void drainVad({bool discard = false}) {
-    while (!vad.isEmpty()) {
-      final seg     = vad.front();
-      final samples = Float32List.fromList(seg.samples); // safe copy
-      vad.pop();
-      samplesSinceSegment = 0;
-      if (!discard) decodeSegment(samples);
+  // ---- energy VAD: accept one float32 chunk ---------------------------------
+  void acceptChunk(Float32List chunk) {
+    final energy = _rms(chunk);
+
+    if (_vadState == _VadState.silence) {
+      // Maintain a short lookback so the speech onset isn't clipped.
+      _lookback.add(chunk);
+      if (_lookback.length > _kLookbackChunks) { _lookback.removeAt(0); }
+
+      if (energy > _kEnergyThreshold) {
+        _voiceCount++;
+        if (_voiceCount >= _kVoiceOnChunks) {
+          _vadState = _VadState.speech;
+          for (final c in _lookback) {
+            _speechBuf.add(c);
+            _speechSamples += c.length;
+          }
+          _lookback.clear();
+          _silenceCount = 0;
+        }
+      } else {
+        _voiceCount = 0;
+      }
+    } else {
+      // Speech state: accumulate and watch for silence end.
+      _speechBuf.add(chunk);
+      _speechSamples += chunk.length;
+
+      if (energy < _kEnergyThreshold) {
+        _silenceCount++;
+        if (_silenceCount >= _kSilenceChunks) { flushSpeech(); }
+      } else {
+        _silenceCount = 0;
+      }
+
+      if (_speechSamples >= _kMaxSpeechSamples) { flushSpeech(); }
     }
+  }
+
+  void resetVad() {
+    _vadState = _VadState.silence;
+    _voiceCount = 0;
+    _silenceCount = 0;
+    _lookback.clear();
+    _speechBuf.clear();
+    _speechSamples = 0;
+    resetCache();
+    logprobBuf.clear();
+    logprobT = 0;
   }
 
   port.listen((msg) {
     if (msg is Uint8List) {
-      final f = _toFloat(msg);
-      samplesSinceSegment += f.length;
-      vad.acceptWaveform(f);
-      drainVad();
-
-      if (samplesSinceSegment >= watchdogSamples) {
-        init.toMain.send({
-          'type': 'watchdog',
-          'secs': (samplesSinceSegment / _kSampleRate).toStringAsFixed(1),
-        });
-        try { vad.flush(); } catch (_) {}
-        // Discard watchdog-flushed audio — 12s without VAD trigger = silence/noise.
-        drainVad(discard: true);
-        samplesSinceSegment = 0;
-      }
+      acceptChunk(_toFloat(msg));
     } else if (msg == 'reset') {
-      try {
-        vad.flush();
-        while (!vad.isEmpty()) { vad.pop(); }
-      } catch (_) {}
-      resetCache();
-      logprobBuf.clear(); logprobT = 0;
-      samplesSinceSegment = 0;
+      resetVad();
     } else if (msg == 'flush') {
-      try { vad.flush(); } catch (_) {}
-      drainVad();
+      flushSpeech();
     } else if (msg == 'finalize') {
-      try { vad.flush(); } catch (_) {}
-      drainVad();
+      flushSpeech();
     } else if (msg == 'dispose') {
       try { session.release(); port.close(); } catch (_) {}
     }
