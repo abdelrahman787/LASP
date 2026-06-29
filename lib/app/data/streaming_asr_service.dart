@@ -1,14 +1,16 @@
 /// StreamingAsrService — sherpa-onnx OfflineRecognizer (Variant B) + Silero VAD.
 ///
-/// Model: model_streaming_final.onnx
-///   (model_streaming_with_encoder.q8.onnx with cache stripped + sherpa metadata
-///    injected via tools/asr/prepare_streaming_model.py)
+/// Model: model_int8.onnx  (Gate-1 proven offline NeMo-CTC)
+///   Offline (non-streaming) model fed short VAD segments (≤ 8 s).
+///   Correct Quran transcription confirmed at Gate-1 (RTF ≈ 0.032–0.053).
 ///
-/// Pipeline per VAD speech segment (≤ 3 s):
+/// The streaming model (model_streaming_with_encoder.q8.onnx) requires
+/// rolling cache tensors and onnxruntime — which conflicts with sherpa_onnx's
+/// bundled libonnxruntime.so. Using the offline model + VAD segmentation gives
+/// near-real-time response with correct output and no hallucination.
+///
+/// Pipeline per VAD speech segment (≤ 8 s):
 ///   VAD segments audio → OfflineRecognizer.decode(stream) → greedy result
-///
-/// Shorter VAD max speech (3 s vs 8 s) keeps each segment to 1–3 words so
-/// the model can't hallucinate across a long silence.
 library;
 
 import 'dart:async';
@@ -29,9 +31,9 @@ import '../debug.dart';
 // ---------------------------------------------------------------------------
 // Asset paths
 // ---------------------------------------------------------------------------
-/// Streaming model with sherpa metadata injected and cache inputs stripped.
-const String _kModelAsset  = 'assets/models/streaming/model_streaming_final.onnx';
-const String _kTokensAsset = 'assets/models/streaming/tokens.txt';
+/// Gate-1 proven offline NeMo-CTC model (sherpa metadata already present).
+const String _kModelAsset  = 'assets/models/tarteel/model_int8.onnx';
+const String _kTokensAsset = 'assets/models/tarteel/tokens.txt';
 const String _kVadAsset    = 'assets/models/tarteel/silero_vad.onnx';
 
 // ---------------------------------------------------------------------------
@@ -47,8 +49,8 @@ const int    _kMinDecodeSamples = 3200;
 const double _kVadThreshold    = 0.5;
 const double _kVadMinSilence   = 0.35;
 const double _kVadMinSpeech    = 0.25;
-// 3 s cap keeps segments to ≤ ~3 words, limiting hallucination window.
-const double _kVadMaxSpeech    = 3.0;
+// Offline model handles up to 8 s cleanly (proven at Gate-1).
+const double _kVadMaxSpeech    = 8.0;
 
 const double _kWatchdogSeconds = 10.0;
 
@@ -72,9 +74,9 @@ class StreamingAsrService implements AsrService {
     if (_toWorker   != null) return true;
     if (_initFailed)          return false;
     try {
-      final model  = await _copyAsset(_kModelAsset,  'streaming_final_model.onnx');
-      final tokens = await _copyAsset(_kTokensAsset, 'streaming_final_tokens.txt');
-      final vad    = await _copyAsset(_kVadAsset,    'streaming_final_vad.onnx');
+      final model  = await _copyAsset(_kModelAsset,  'streaming_svc_model.onnx');
+      final tokens = await _copyAsset(_kTokensAsset, 'streaming_svc_tokens.txt');
+      final vad    = await _copyAsset(_kVadAsset,    'streaming_svc_vad.onnx');
 
       _fromWorker = ReceivePort();
       final ready = Completer<bool>();
@@ -169,7 +171,7 @@ class StreamingAsrService implements AsrService {
         cancelOnError: false,
       );
       dlog('[ASR] streaming mic started — PCM16 ${_kSampleRate}Hz mono, '
-          'NeMo-CTC via sherpa-onnx OfflineRecognizer, '
+          'NeMo-CTC offline model via sherpa-onnx + Silero VAD, '
           'VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
     } catch (e) {
       dlog('[ASR] mic start failed: $e');
