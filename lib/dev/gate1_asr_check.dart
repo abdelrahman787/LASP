@@ -1,3 +1,5 @@
+// ignore_for_file: uri_does_not_exist, depend_on_referenced_packages
+
 /// GATE 1 — sherpa_onnx compatibility check for the Quran FastConformer-CTC model.
 ///
 /// THROWAWAY dev harness (CLAUDE.md Phase 2, "Gate 1 first"). It does ONE thing:

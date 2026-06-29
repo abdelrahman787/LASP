@@ -1,6 +1,6 @@
-import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
+// ignore_for_file: uri_does_not_exist, depend_on_referenced_packages, avoid_print
 
-// ignore_for_file: avoid_print
+import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 void main() {
   sherpa.initBindings();
 

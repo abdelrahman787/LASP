@@ -307,13 +307,13 @@ void _workerMain(_WorkerInit init) {
   }
 
   // ---- energy VAD state -----------------------------------------------------
-  var _vadState    = _VadState.silence;
-  var _voiceCount  = 0;
-  var _silenceCount = 0;
-  final _lookback  = <Float32List>[];   // pre-onset ringbuffer
-  final _speechBuf = <Float32List>[];
-  var _speechSamples = 0;
-  var _rmsLogCount = 0; // rate-limit RMS logging (every 10 chunks)
+  var vadState    = _VadState.silence;
+  var voiceCount  = 0;
+  var silenceCount = 0;
+  final lookback  = <Float32List>[];   // pre-onset ringbuffer
+  final speechBuf = <Float32List>[];
+  var speechSamples = 0;
+  var rmsLogCount = 0; // rate-limit RMS logging (every 10 chunks)
 
   // ---- CTC accumulator ------------------------------------------------------
   final logprobBuf = <double>[];
@@ -439,69 +439,69 @@ void _workerMain(_WorkerInit init) {
 
   // ---- flush current speech buffer as one segment ---------------------------
   void flushSpeech() {
-    if (_speechBuf.isEmpty) return;
-    final total = _speechSamples;
+    if (speechBuf.isEmpty) return;
+    final total = speechSamples;
     final merged = Float32List(total);
     var off = 0;
-    for (final c in _speechBuf) { merged.setAll(off, c); off += c.length; }
-    _speechBuf.clear();
-    _speechSamples = 0;
-    _vadState = _VadState.silence;
-    _voiceCount = 0;
-    _silenceCount = 0;
+    for (final c in speechBuf) { merged.setAll(off, c); off += c.length; }
+    speechBuf.clear();
+    speechSamples = 0;
+    vadState = _VadState.silence;
+    voiceCount = 0;
+    silenceCount = 0;
     decodeSegment(merged);
   }
 
   // ---- energy VAD: accept one float32 chunk ---------------------------------
   void acceptChunk(Float32List chunk) {
     final energy = _rms(chunk);
-    _rmsLogCount++;
-    if (_rmsLogCount % 10 == 1) {
-      dlog('[ASR-vad] RMS=${energy.toStringAsFixed(4)} state=$_vadState thresh=$_kEnergyThreshold');
+    rmsLogCount++;
+    if (rmsLogCount % 10 == 1) {
+      dlog('[ASR-vad] RMS=${energy.toStringAsFixed(4)} state=$vadState thresh=$_kEnergyThreshold');
     }
 
-    if (_vadState == _VadState.silence) {
+    if (vadState == _VadState.silence) {
       // Maintain a short lookback so the speech onset isn't clipped.
-      _lookback.add(chunk);
-      if (_lookback.length > _kLookbackChunks) { _lookback.removeAt(0); }
+      lookback.add(chunk);
+      if (lookback.length > _kLookbackChunks) { lookback.removeAt(0); }
 
       if (energy > _kEnergyThreshold) {
-        _voiceCount++;
-        if (_voiceCount >= _kVoiceOnChunks) {
-          _vadState = _VadState.speech;
-          for (final c in _lookback) {
-            _speechBuf.add(c);
-            _speechSamples += c.length;
+        voiceCount++;
+        if (voiceCount >= _kVoiceOnChunks) {
+          vadState = _VadState.speech;
+          for (final c in lookback) {
+            speechBuf.add(c);
+            speechSamples += c.length;
           }
-          _lookback.clear();
-          _silenceCount = 0;
+          lookback.clear();
+          silenceCount = 0;
         }
       } else {
-        _voiceCount = 0;
+        voiceCount = 0;
       }
     } else {
       // Speech state: accumulate and watch for silence end.
-      _speechBuf.add(chunk);
-      _speechSamples += chunk.length;
+      speechBuf.add(chunk);
+      speechSamples += chunk.length;
 
       if (energy < _kEnergyThreshold) {
-        _silenceCount++;
-        if (_silenceCount >= _kSilenceChunks) { flushSpeech(); }
+        silenceCount++;
+        if (silenceCount >= _kSilenceChunks) { flushSpeech(); }
       } else {
-        _silenceCount = 0;
+        silenceCount = 0;
       }
 
-      if (_speechSamples >= _kMaxSpeechSamples) { flushSpeech(); }
+      if (speechSamples >= _kMaxSpeechSamples) { flushSpeech(); }
     }
   }
 
   void resetVad() {
-    _vadState = _VadState.silence;
-    _voiceCount = 0;
-    _silenceCount = 0;
-    _lookback.clear();
-    _speechBuf.clear();
-    _speechSamples = 0;
+    vadState = _VadState.silence;
+    voiceCount = 0;
+    silenceCount = 0;
+    lookback.clear();
+    speechBuf.clear();
+    speechSamples = 0;
     resetCache();
     logprobBuf.clear();
     logprobT = 0;

@@ -1,3 +1,7 @@
+// ignore_for_file: uri_does_not_exist, depend_on_referenced_packages, argument_type_not_assignable
+// sherpa_onnx removed from pubspec.yaml (libonnxruntime.so conflict with onnxruntime package).
+// This file is kept for reference; it is not compiled into production builds.
+
 /// SherpaOnnxAsrService — real on-device ASR using the Quran-trained
 /// FastConformer-CTC (NeMo-CTC int8) model via sherpa_onnx 1.13.3.
 ///
