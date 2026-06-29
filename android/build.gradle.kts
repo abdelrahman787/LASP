@@ -19,6 +19,18 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Force all plugin/library subprojects to compileSdk ≥ 35 so that their
+// AndroidX transitive deps (which require 34+) do not fail metadata checks.
+subprojects {
+    afterEvaluate {
+        extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
+            if ((compileSdkVersion?.removePrefix("android-")?.toIntOrNull() ?: 0) < 35) {
+                compileSdkVersion(35)
+            }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
