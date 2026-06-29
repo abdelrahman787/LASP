@@ -6,7 +6,8 @@
     <application
         android:label="quran_tasmee3"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowNativeHeapPointerTagging="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
