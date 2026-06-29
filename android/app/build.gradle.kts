@@ -35,6 +35,20 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Both `onnxruntime` Flutter package and `sherpa_onnx` bundle libonnxruntime.so.
+    // pickFirst keeps sherpa's copy (newer, 1.19.x) and lets the onnxruntime Dart
+    // bindings call into it — the ONNX Runtime C API is stable across versions.
+    packaging {
+        jniLibs {
+            pickFirsts += setOf(
+                "lib/arm64-v8a/libonnxruntime.so",
+                "lib/armeabi-v7a/libonnxruntime.so",
+                "lib/x86/libonnxruntime.so",
+                "lib/x86_64/libonnxruntime.so"
+            )
+        }
+    }
 }
 
 kotlin {

@@ -1,16 +1,29 @@
-/// StreamingAsrService — sherpa-onnx OfflineRecognizer (Variant B) + Silero VAD.
+/// StreamingAsrService — onnxruntime direct inference with rolling cache.
 ///
-/// Model: model_int8.onnx  (Gate-1 proven offline NeMo-CTC)
-///   Offline (non-streaming) model fed short VAD segments (≤ 8 s).
-///   Correct Quran transcription confirmed at Gate-1 (RTF ≈ 0.032–0.053).
+/// Model: model_streaming_with_encoder.q8.onnx (Q8 streaming NeMo-CTC)
+///   Inputs per chunk:
+///     audio_signal           float32 [1, 80, T]        mel features (CMVN applied)
+///     length                 int64   [1]               number of mel frames T
+///     cache_last_channel     float32 [1, 17, 70, 512]  zero-init, carried forward
+///     cache_last_time        float32 [1, 17, 512,  8]  zero-init, carried forward
+///     cache_last_channel_len int64   [1]               zero-init, carried forward
+///   Outputs:
+///     [0] logprobs             float32 [1, T_out, 1025]
+///     [1] encoder_output       (ignored)
+///     [2] encoded_lengths      (ignored)
+///     [3] cache_last_channel_next  float32 [1, 17, 70, 512]
+///     [4] cache_last_time_next     float32 [1, 17, 512,  8]
+///     [5] cache_last_channel_next_len int64 [1]
 ///
-/// The streaming model (model_streaming_with_encoder.q8.onnx) requires
-/// rolling cache tensors and onnxruntime — which conflicts with sherpa_onnx's
-/// bundled libonnxruntime.so. Using the offline model + VAD segmentation gives
-/// near-real-time response with correct output and no hallucination.
+/// Pipeline:
+///   Silero VAD (sherpa-onnx) → speech segments
+///   per segment: reset cache → 200ms chunks → mel+CMVN → OrtSession (cache)
+///   → accumulate logprobs → CTC greedy decode → emit result
 ///
-/// Pipeline per VAD speech segment (≤ 8 s):
-///   VAD segments audio → OfflineRecognizer.decode(stream) → greedy result
+/// Why onnxruntime (not sherpa OfflineRecognizer):
+///   model_int8.onnx + SherpaOnnxDecodeOfflineStream = SIGSEGV on Android 16
+///   (deterministic SEGV_ACCERR at offset +68, Q8 streaming model is unaffected).
+///   Using onnxruntime directly bypasses sherpa's decode path entirely.
 library;
 
 import 'dart:async';
@@ -19,6 +32,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:onnxruntime/onnxruntime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -27,32 +41,37 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import 'package:quran_tasmee3_core/recitation/asr_service.dart';
 
 import '../debug.dart';
+import 'cmvn_data.dart';
+import 'ctc_decoder.dart';
+import 'mel_features.dart';
 
 // ---------------------------------------------------------------------------
 // Asset paths
 // ---------------------------------------------------------------------------
-/// Gate-1 proven offline NeMo-CTC model (sherpa metadata already present).
-const String _kModelAsset  = 'assets/models/tarteel/model_int8.onnx';
-const String _kTokensAsset = 'assets/models/tarteel/tokens.txt';
+const String _kModelAsset  = 'assets/models/streaming/model_streaming_with_encoder.q8.onnx';
+const String _kTokensAsset = 'assets/models/streaming/tokens.txt';
 const String _kVadAsset    = 'assets/models/tarteel/silero_vad.onnx';
 
 // ---------------------------------------------------------------------------
-// Tuning constants
+// Tuning
 // ---------------------------------------------------------------------------
 const int    _kSampleRate       = 16000;
 const int    _kNumThreads       = 2;
+const int    _kChunkSamples     = 3200;  // 200ms per inference step
+const int    _kMinDecodeSamples = 3200;  // skip sub-200ms artifacts
+const int    _kTrailingSilence  = 6400;  // 400ms appended to close open tokens
 
-/// Minimum decodeable segment (0.2 s). Shorter VAD artifacts are skipped.
-const int    _kMinDecodeSamples = 3200;
+const double _kVadThreshold    = 0.4;   // lower threshold → catch more speech
+const double _kVadMinSilence   = 0.3;
+const double _kVadMinSpeech    = 0.2;
+const double _kVadMaxSpeech    = 5.0;   // 5s max → ≤ 2–3 ayah words
 
-// Silero VAD
-const double _kVadThreshold    = 0.5;
-const double _kVadMinSilence   = 0.35;
-const double _kVadMinSpeech    = 0.25;
-// Offline model handles up to 8 s cleanly (proven at Gate-1).
-const double _kVadMaxSpeech    = 8.0;
+const double _kWatchdogSeconds = 12.0;
 
-const double _kWatchdogSeconds = 10.0;
+// Cache tensor shapes (verified from model inspection).
+const List<int> _kCacheChannelShape = [1, 17, 70, 512];
+const List<int> _kCacheTimeShape    = [1, 17, 512, 8];
+const List<int> _kCacheLenShape     = [1];
 
 // ---------------------------------------------------------------------------
 // Main-isolate service
@@ -74,9 +93,9 @@ class StreamingAsrService implements AsrService {
     if (_toWorker   != null) return true;
     if (_initFailed)          return false;
     try {
-      final model  = await _copyAsset(_kModelAsset,  'streaming_svc_model.onnx');
-      final tokens = await _copyAsset(_kTokensAsset, 'streaming_svc_tokens.txt');
-      final vad    = await _copyAsset(_kVadAsset,    'streaming_svc_vad.onnx');
+      final model  = await _copyAsset(_kModelAsset,  'ort_streaming_model.onnx');
+      final tokens = await _copyAsset(_kTokensAsset, 'ort_streaming_tokens.txt');
+      final vad    = await _copyAsset(_kVadAsset,    'ort_streaming_vad.onnx');
 
       _fromWorker = ReceivePort();
       final ready = Completer<bool>();
@@ -90,14 +109,19 @@ class StreamingAsrService implements AsrService {
               if (!ready.isCompleted) ready.complete(true);
             case 'init_failed':
               _initFailed = true;
-              dlog('[ASR] streaming worker init_failed: ${msg['error']}');
+              dlog('[ASR] worker init_failed: ${msg['error']}');
               if (!ready.isCompleted) ready.complete(false);
+            case 'partial':
+              if (_running && !_paused) {
+                final text = (msg['text'] as String).trim();
+                if (text.isNotEmpty) _onResult?.call(AsrResult(text, 0.85));
+              }
             case 'result':
-              final text    = (msg['text']    as String).trim();
+              final text     = (msg['text']    as String).trim();
               final audioSec = msg['audioSec'] as double;
               final inferMs  = msg['inferMs']  as int;
               final rtf = audioSec > 0 ? inferMs / 1000.0 / audioSec : 0.0;
-              dlog('[ASR] result: "${text.isEmpty ? "(empty)" : text}" '
+              dlog('[ASR] "${text.isEmpty ? "(empty)" : text}" '
                   'audio=${audioSec.toStringAsFixed(2)}s '
                   'infer=${inferMs}ms RTF=${rtf.toStringAsFixed(3)}');
               if ((_running && !_paused) || _finalizing) {
@@ -105,7 +129,7 @@ class StreamingAsrService implements AsrService {
                 _onResult?.call(AsrResult(text, text.isEmpty ? 0.0 : 0.85));
               }
             case 'watchdog':
-              dlog('[ASR] watchdog — no VAD for ${msg['secs']}s; flushing.');
+              dlog('[ASR] watchdog — no VAD for ${msg['secs']}s');
           }
         }
       });
@@ -171,8 +195,8 @@ class StreamingAsrService implements AsrService {
         cancelOnError: false,
       );
       dlog('[ASR] streaming mic started — PCM16 ${_kSampleRate}Hz mono, '
-          'NeMo-CTC offline model via sherpa-onnx + Silero VAD, '
-          'VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
+          'Q8 streaming NeMo-CTC via onnxruntime + rolling cache + Silero VAD, '
+          'chunk=${_kChunkSamples} VAD max=${_kVadMaxSpeech}s, threads=$_kNumThreads');
     } catch (e) {
       dlog('[ASR] mic start failed: $e');
       _running = false;
@@ -235,7 +259,6 @@ class _WorkerInit {
   });
 }
 
-/// PCM16LE bytes → Float32 [-1, 1].
 Float32List _toFloat(Uint8List bytes) {
   final n  = bytes.length ~/ 2;
   final bd = ByteData.view(bytes.buffer, bytes.offsetInBytes, n * 2);
@@ -246,46 +269,27 @@ Float32List _toFloat(Uint8List bytes) {
   return out;
 }
 
-/// Worker isolate: Silero VAD (sherpa-onnx) + fresh OfflineRecognizer per segment.
-///
-/// Gate-1 proved on arm64 (Motorola Edge 50) that a SHARED recognizer
-/// SIGSEGVs inside SherpaOnnxDecodeOfflineStream after the first segment.
-/// Variant B (fresh recognizer + stream per segment, freed after each) is
-/// stable and proven.  Model-load cost per segment is ~60–180 ms on this
-/// device — acceptable for a natural-pause triggered pipeline.
 void _workerMain(_WorkerInit init) {
   final port = ReceivePort();
   init.toMain.send(port.sendPort);
 
+  late OrtSession            session;
   late sherpa.VoiceActivityDetector vad;
+  late CtcGreedyDecoder      ctcDecoder;
+  final mel = MelExtractor();
 
-  // ---- build a fresh OfflineRecognizer (Variant B — one per segment) --------
-  sherpa.OfflineRecognizer _buildRecognizer() => sherpa.OfflineRecognizer(
-        sherpa.OfflineRecognizerConfig(
-          decodingMethod: 'greedy_search',
-          feat: const sherpa.FeatureConfig(
-            sampleRate: _kSampleRate,
-            featureDim: 80,
-          ),
-          model: sherpa.OfflineModelConfig(
-            nemoCtc: sherpa.OfflineNemoEncDecCtcModelConfig(
-              model: init.modelPath,
-            ),
-            tokens:     init.tokensPath,
-            numThreads: init.numThreads,
-            modelType:  'nemo_ctc',
-            debug:      false,
-          ),
-        ),
-      );
-
-  // ---- initialise bindings + VAD (once) -------------------------------------
   try {
+    OrtEnv.instance.init();
+    final opts = OrtSessionOptions()
+      ..setIntraOpNumThreads(init.numThreads)
+      ..setInterOpNumThreads(1);
+    session = OrtSession.fromFile(File(init.modelPath), opts);
+
+    ctcDecoder = CtcGreedyDecoder.fromTokensTxt(
+      File(init.tokensPath).readAsStringSync(),
+    );
+
     sherpa.initBindings();
-
-    // Probe: build one recognizer to validate the model loads, then free it.
-    _buildRecognizer().free();
-
     vad = sherpa.VoiceActivityDetector(
       config: sherpa.VadModelConfig(
         sileroVad: sherpa.SileroVadModelConfig(
@@ -307,46 +311,151 @@ void _workerMain(_WorkerInit init) {
     return;
   }
 
-  // ---- decode one segment (Variant B: fresh recognizer, freed after) --------
-  final sw = Stopwatch();
+  // ---- rolling cache (reset per segment) ------------------------------------
+  Float32List cacheChannel    = Float32List(_prod(_kCacheChannelShape));
+  Float32List cacheTime       = Float32List(_prod(_kCacheTimeShape));
+  Int64List   cacheChannelLen = Int64List(1);
 
-  void decodeSegment(sherpa.SpeechSegment seg) {
-    if (seg.samples.length < _kMinDecodeSamples) return;
-
-    sw.reset(); sw.start();
-    final rec    = _buildRecognizer();
-    final stream = rec.createStream();
-    stream.acceptWaveform(samples: seg.samples, sampleRate: _kSampleRate);
-    rec.decode(stream);
-    final result = rec.getResult(stream);
-    stream.free();
-    rec.free();
-    sw.stop();
-
-    final text = result.text.trim();
-    final audioSec = seg.samples.length / _kSampleRate.toDouble();
-    init.toMain.send({
-      'type':     'result',
-      'text':     text,
-      'audioSec': audioSec,
-      'inferMs':  sw.elapsedMilliseconds,
-    });
+  void resetCache() {
+    cacheChannel    = Float32List(_prod(_kCacheChannelShape));
+    cacheTime       = Float32List(_prod(_kCacheTimeShape));
+    cacheChannelLen = Int64List(1);
   }
 
-  // ---- VAD drain ------------------------------------------------------------
-  var samplesSinceSegment = 0;
-  final watchdogSamples   = (_kWatchdogSeconds * _kSampleRate).round();
+  // ---- accumulator for current segment -------------------------------------
+  final logprobBuf = <double>[];
+  var   logprobT   = 0;
+  var   inferMs    = 0;
+  final sw         = Stopwatch();
 
-  void drainVad() {
-    while (!vad.isEmpty()) {
-      final seg = vad.front();
-      vad.pop();
-      samplesSinceSegment = 0;
-      decodeSegment(seg);
+  void inferChunk(Float32List chunk) {
+    final frames = mel.extract(chunk);
+    if (frames.isEmpty) return;
+    mel.applyCmvn(frames, cmvnMean, cmvnStd);
+    final T    = frames.length;
+    final feat = mel.toModelInput(frames); // [80 * T] flat, [1, 80, T] layout
+
+    final tAudio    = OrtValueTensor.createTensorWithDataList(feat,            [1, 80, T]);
+    final tLen      = OrtValueTensor.createTensorWithDataList(Int64List.fromList([T]), [1]);
+    final tCacheCh  = OrtValueTensor.createTensorWithDataList(cacheChannel,    _kCacheChannelShape);
+    final tCacheTm  = OrtValueTensor.createTensorWithDataList(cacheTime,       _kCacheTimeShape);
+    final tCacheLen = OrtValueTensor.createTensorWithDataList(cacheChannelLen, _kCacheLenShape);
+
+    final inputs = <String, OrtValueTensor>{
+      'audio_signal':             tAudio,
+      'length':                   tLen,
+      'cache_last_channel':       tCacheCh,
+      'cache_last_time':          tCacheTm,
+      'cache_last_channel_len':   tCacheLen,
+    };
+
+    sw.reset(); sw.start();
+    List<OrtValue?>? outputs;
+    try {
+      outputs = session.run(OrtRunOptions(), inputs);
+    } catch (e) {
+      dlog('[ASR-worker] ORT run error: $e');
+      return;
+    } finally {
+      tAudio.release();   tLen.release();
+      tCacheCh.release(); tCacheTm.release(); tCacheLen.release();
+      sw.stop();
+      inferMs += sw.elapsedMilliseconds;
+    }
+
+    if (outputs == null || outputs.isEmpty) return;
+
+    // Extract logprobs [1, T_out, 1025].
+    try {
+      final lpRaw = outputs[0]?.value;
+      if (lpRaw is List) {
+        final batch = lpRaw[0] as List;
+        for (final frame in batch) {
+          final f = frame as List;
+          logprobBuf.addAll(f.cast<double>());
+          logprobT++;
+        }
+      }
+    } catch (_) {}
+
+    // Update rolling cache.
+    try {
+      void readF32Cache(int idx, Float32List dest) {
+        final raw = outputs![idx]?.value;
+        if (raw is! List) return;
+        var i = 0;
+        void visit(dynamic v) {
+          if (v is List) { for (final x in v) visit(x); }
+          else if (i < dest.length) { dest[i++] = (v as num).toDouble(); }
+        }
+        visit(raw);
+      }
+      readF32Cache(3, cacheChannel);
+      readF32Cache(4, cacheTime);
+      final rawLen = outputs[5]?.value;
+      if (rawLen is List && rawLen.isNotEmpty) {
+        cacheChannelLen[0] = (rawLen[0] as num).toInt();
+      }
+    } catch (_) {}
+
+    for (final o in outputs) { try { o?.release(); } catch (_) {} }
+  }
+
+  // ---- decode one VAD segment -----------------------------------------------
+  void decodeSegment(Float32List samples) {
+    if (samples.length < _kMinDecodeSamples) return;
+
+    logprobBuf.clear(); logprobT = 0; inferMs = 0;
+    resetCache();
+
+    // Append trailing silence so the model closes open tokens.
+    final full = Float32List(samples.length + _kTrailingSilence);
+    full.setAll(0, samples);
+
+    var offset = 0;
+    while (offset < full.length) {
+      final end   = (offset + _kChunkSamples).clamp(0, full.length);
+      final chunk = full.sublist(offset, end);
+      inferChunk(chunk);
+      offset = end;
+
+      // Emit partial after each chunk.
+      if (logprobT > 0) {
+        final lp      = Float32List.fromList(logprobBuf);
+        final partial = ctcDecoder.decode(lp, logprobT);
+        if (partial.isNotEmpty) {
+          init.toMain.send({'type': 'partial', 'text': partial});
+        }
+      }
+    }
+
+    if (logprobT > 0) {
+      final lp      = Float32List.fromList(logprobBuf);
+      final text    = ctcDecoder.decode(lp, logprobT);
+      final audioSec = samples.length / _kSampleRate.toDouble();
+      init.toMain.send({
+        'type':     'result',
+        'text':     text,
+        'audioSec': audioSec,
+        'inferMs':  inferMs,
+      });
     }
   }
 
-  // ---- message loop ---------------------------------------------------------
+  // ---- VAD drain (copy samples before pop to guard against native buffer reuse)
+  var samplesSinceSegment = 0;
+  final watchdogSamples   = (_kWatchdogSeconds * _kSampleRate).round();
+
+  void drainVad({bool discard = false}) {
+    while (!vad.isEmpty()) {
+      final seg     = vad.front();
+      final samples = Float32List.fromList(seg.samples); // safe copy
+      vad.pop();
+      samplesSinceSegment = 0;
+      if (!discard) decodeSegment(samples);
+    }
+  }
+
   port.listen((msg) {
     if (msg is Uint8List) {
       final f = _toFloat(msg);
@@ -360,14 +469,17 @@ void _workerMain(_WorkerInit init) {
           'secs': (samplesSinceSegment / _kSampleRate).toStringAsFixed(1),
         });
         try { vad.flush(); } catch (_) {}
-        drainVad();
+        // Discard watchdog-flushed audio — 12s without VAD trigger = silence/noise.
+        drainVad(discard: true);
         samplesSinceSegment = 0;
       }
     } else if (msg == 'reset') {
       try {
         vad.flush();
-        while (!vad.isEmpty()) { vad.pop(); }
+        while (!vad.isEmpty()) vad.pop();
       } catch (_) {}
+      resetCache();
+      logprobBuf.clear(); logprobT = 0;
       samplesSinceSegment = 0;
     } else if (msg == 'flush') {
       try { vad.flush(); } catch (_) {}
@@ -376,7 +488,9 @@ void _workerMain(_WorkerInit init) {
       try { vad.flush(); } catch (_) {}
       drainVad();
     } else if (msg == 'dispose') {
-      try { port.close(); } catch (_) {}
+      try { session.release(); port.close(); } catch (_) {}
     }
   });
 }
+
+int _prod(List<int> shape) => shape.fold(1, (a, b) => a * b);
