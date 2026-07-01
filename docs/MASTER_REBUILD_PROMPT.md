@@ -167,6 +167,41 @@ Also bundle:
   `normalize_type=per_feature`, `model_author=nemo`) is **already present** in
   the ONNX export — no metadata injection needed for either variant.
 
+### 2.1a Model landscape — alternatives considered and why the locked pick wins
+
+This is the analysis that was missing from earlier versions of this document:
+a direct comparison against the other offline-capable Arabic/Quran ASR models
+that exist today (checked July 2026), evaluated specifically against the
+constraints that caused our historical failures — **must run fully offline,
+must be truly streaming (word-by-word, not batch), must have Quranic-grade
+accuracy (tashkeel, riwayah, rare lexis), and must be runnable without
+`sherpa_onnx`'s native runtime** (§2.2/§3.12).
+
+| Model / family | Streaming? | Quran-trained? | Runtime | Offline? | Verdict |
+|---|---|---|---|---|---|
+| **`Saboorhsn/quran-stt-onnx` (FastConformer-CTC, cache-aware) — LOCKED** | ✅ True streaming, cache-aware chunking | ✅ Yes (EveryAyah + tlog, Hafs riwayah, tashkeel) | `onnxruntime` direct (no sherpa needed) | ✅ Fully on-device | **Adopted.** Only candidate that satisfies all four constraints simultaneously. |
+| `tarteel-ai/whisper-{tiny,base}-ar-quran` and derivatives (`OdyAsh/faster-whisper-base-ar-quran`, LoRA fine-tunes) | ❌ Batch (Whisper's encoder needs the full segment before decoding) | ✅ Yes, and high accuracy | whisper.cpp / CTranslate2 / ONNX | ✅ On-device | **Rejected — same structural flaw as §3.2.** Quantizing or speeding up a batch model (int8, `faster-whisper`, GGUF `q4_0`) reduces latency per call but does not make it streaming. Still produces the multi-line reveal delay that already sank this family once in this project. Worth revisiting only if the product requirement changes from "live word-by-word reveal" to "transcribe after the student finishes a passage." |
+| `hetchyy/r7_onnx_int8`, `hetchyy/r15_95m_onnx_int8` (wav2vec2-CTC phoneme models, via the `offline-tarteel` verse-ID project) | Partial (CTC, but used for whole-utterance verse retrieval, not live word tracking) | ✅ Yes (Quran-recitation fine-tuned, phoneme-level) | ONNX int8 (own runtime, no sherpa) | ✅ On-device, small (116–970 MB) | **Different problem, not a substitute.** This model family answers *"which verse was just recited?"* (audio → surah:ayah lookup via phoneme Levenshtein matching), not *"which word is being said right now, live."* Genuinely interesting as a **future Phase-4 GOP/pronunciation-scoring signal** (phoneme-level CTC output is exactly the kind of thing a GOP head consumes) — not a replacement for the live-reveal engine. |
+| Moonshine v2 (Arabic monolingual, streaming-first, edge-optimized) | ✅ True streaming with an explicit encoder+decoder cache design | ❌ No — general Arabic, not Quran-trained | `onnxruntime` (native ORT/.ort flatbuffer — same runtime family we already standardized on, **no sherpa needed**) | ✅ On-device | **Not adopted, but the closest architectural analog and worth watching.** Its streaming design and runtime story are a near-exact match for what we already built (§4) — if a Quran-fine-tuned Moonshine checkpoint appears, it would be a drop-in evaluation candidate. As shipped today it lacks tashkeel/riwayah accuracy, which is a harder requirement for this product than raw WER on generic Arabic. |
+| NVIDIA official FastConformer-Hybrid streaming checkpoints (`nvidia/stt_*_fastconformer_hybrid_*_streaming_*`) | ✅ True streaming, cache-aware (same architecture family as our locked model) | ❌ No official Arabic/Quran checkpoint | NeMo / ONNX export, `onnxruntime` viable | ✅ On-device | **Not a direct candidate (no Quran data), but validates the architecture choice.** NVIDIA's own recommended production pattern for on-device streaming ASR is exactly cache-aware FastConformer with carried encoder state — the same design we independently arrived at and hand-implemented in §4.2. This is external confirmation that the architecture, not just the specific community checkpoint, is the right one. |
+| sherpa-onnx's own pretrained streaming Zipformer models | ✅ True streaming | ❌ No Arabic offering found | `sherpa_onnx` native runtime | ✅ On-device | **Rejected on two counts:** no Arabic/Quran checkpoint exists in this family, and even if one existed, adopting it would reintroduce the `sherpa_onnx` native runtime we specifically had to remove for the `.so` ABI conflict (§3.12). Do not reconsider `sherpa_onnx` for the primary ASR path unless the `onnxruntime`-only architecture is abandoned entirely. |
+
+**Bottom line:** `Saboorhsn/quran-stt-onnx`'s streaming Q8 variant remains the
+correct pick. It is not "the only model that exists" — it is the only one
+that is simultaneously *streaming*, *Quran-accurate*, and *runnable through a
+single, conflict-free native runtime*. Every historical failure in §3 came
+from getting one of those three wrong (Whisper failed on streaming, generic
+Arabic models fail on accuracy, and the sherpa runtime failed on the "single
+conflict-free native runtime" property) — this is why the model *and* the
+runtime are both called out as LOCKED decisions rather than just the model.
+
+**Re-evaluate this table, don't just trust it forever:** if you're reading
+this months later, re-run this same search (Quran/Arabic ASR model
+landscape, HuggingFace + arXiv) before starting Phase 2 — this is a fast-
+moving space (Moonshine v2 and the NVIDIA Nemotron-speech-streaming family
+were both new within the last year of this writing) and a better-fitting
+model may exist by the time you rebuild.
+
 ### 2.2 ASR runtime — LOCKED: `onnxruntime` Flutter package, NOT `sherpa_onnx`
 
 This is a **reversal** of an earlier locked decision (`DEVELOPMENT_JOURNEY.md`
