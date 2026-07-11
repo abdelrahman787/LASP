@@ -305,3 +305,11 @@ first, and don't null out the callbacks until after that grace period.**
 3. Update `PROGRESS.md` with what was fixed and why, using the same
    evidence rules as every prior round (quote the actual diffs, don't just
    assert "fixed").
+4. **Commit all changes and push to `origin/main` on
+   `abdelrahman787/quran-tasmee3-rebuild` — do not stop at a local commit.**
+   Report back the actual commit hash AND confirm the push succeeded (e.g.
+   by showing the `git push` output showing the remote ref update, the same
+   way every prior round in this project reported it). If the push fails
+   for any reason (auth, network, etc.), say so explicitly rather than
+   reporting the fix as "done" — a fix that only exists locally in the
+   sandbox is not reviewable and is not done.
