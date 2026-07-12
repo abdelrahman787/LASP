@@ -5,7 +5,9 @@ description: >-
   scheduler (Feature 4). No Flutter or platform dependencies — these files
   are consumed unchanged by the Flutter app and are fully unit-tested here.
 publish_to: none
-version: 0.1.0
+# Pinned for the rebuild (Blueprint Phase 0): the core is frozen and consumed by
+# the new app as a path dependency. Bump only with a measured, test-backed change.
+version: 0.9.0
 
 environment:
   sdk: ^3.5.0

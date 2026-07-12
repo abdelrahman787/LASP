@@ -30,8 +30,30 @@ assets/quran/*.sqlite-wal
 assets/quran/fonts/*
 !assets/quran/fonts/.gitkeep
 
-# On-device ASR model (built locally via tools/asr/export_onnx.py)
+# On-device ASR models (download locally; only .gitkeep tracked)
 assets/models/tarteel/*
 !assets/models/tarteel/.gitkeep
+assets/models/streaming/*
+!assets/models/streaming/.gitkeep
 tools/asr/_work/
 tools/asr/__pycache__/
+# Secrets — NEVER commit
+android/app/google-services.json
+lib/firebase_options.dart
+firestore.rules.bak
+lib/firebase_options.dart.bak
+.firebaserc
+
+# Heavy / generated
+.venv/
+tarteel_ct2/
+*.onnx
+*.data
+sym_shape_infer_temp.onnx
+android/hs_err_pid*.log
+android/.kotlin/
+.agents/
+
+# Gate-0/Gate-1 verification audio (the human's own voice clip; not committed)
+assets/test_audio/*
+!assets/test_audio/.gitkeep

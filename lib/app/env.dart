@@ -8,4 +8,4 @@ library;
 /// When true, use the on-device Tarteel Whisper model (Sherpa-ONNX) for ASR.
 /// When false, fall back to the Cloudflare Worker (GroqAsrService) — controlled
 /// by `kUseRealAsr` in providers.dart.
-const bool kUseOnDeviceAsr = true;
+const bool kUseOnDeviceAsr = false;

@@ -29,7 +29,9 @@ dependencies:
   permission_handler: ^11.3.1      # SWAP 1: real ASR (mic permission)
   sqflite: ^2.3.3                  # SWAP 3: bundled Quran SQLite
   path_provider: ^2.1.4            # SWAP 3: copy bundled DB to a writable path
-  sherpa_onnx: ^1.10.30            # On-device Whisper ASR + Silero VAD
+  # sherpa_onnx removed: its libonnxruntime.so conflicted with onnxruntime package;
+  # Silero VAD replaced by pure-Dart energy VAD (no native libs needed for VAD).
+  onnxruntime: ^1.2.0              # Direct ONNX inference with cache for streaming CTC.
   # flutter_local_notifications: ^17.2.3  # Review Plans Phase 6 reminders
 
 dev_dependencies:
@@ -44,9 +46,15 @@ flutter:
     # back to FakeQuranRepository if these aren't present.
     - assets/quran/
     - assets/quran/fonts/
-    # On-device ASR model (built locally by tools/asr/export_onnx.py; gitignored
-    # except .gitkeep — the app falls back to GroqAsrService if absent).
+    # Offline CTC model (Gate-1 verified; gitignored except .gitkeep).
     - assets/models/tarteel/
+    # Streaming Transducer model — Muno459/fastconformer-quran-streaming
+    # (encoder.onnx, decoder.onnx, joiner.onnx, tokens.txt; gitignored except
+    # .gitkeep). App falls back to SherpaOnnxAsrService if absent.
+    - assets/models/streaming/
+    # Gate-1 / Gate-0 verification clip (16 kHz mono PCM16). Gitignored except
+    # .gitkeep — drop your verified ayah16k.wav here to run lib/dev/gate1_main.dart.
+    - assets/test_audio/
     # Self-authored decorative surah-name frame (tools/art/make_surah_banner.py).
     # Committed (not gitignored) — one shared asset reused for all surahs.
     - assets/decor/

@@ -66,6 +66,9 @@ class _PagerState extends ConsumerState<_Pager> {
     _activeIndex = startIdx;
     _controller = PageController(initialPage: startIdx);
     _precacheAround(startIdx);
+    // (All page fonts are preloaded once at app startup — see QuranTasmee3App —
+    // so turning pages here never triggers a font load.) This ±2 ensure is just
+    // a safety net for the rare case the preload hasn't reached this area yet.
     _probe.start();
   }
 

@@ -1,0 +1,62 @@
+# CI for Quran Tasmee3.
+#
+# Two jobs:
+#  - core: the pure-Dart engine (packages/quran_tasmee3_core) — plain `dart`,
+#    no Flutter needed. This is the source of truth and must always be green.
+#  - app:  the Flutter app — `flutter analyze` + `flutter test`. Runs with the
+#    Flutter SDK (the repo root is a Flutter app, so plain `dart pub get` here
+#    fails — that was the previous CI bug).
+#
+# Third-party actions (subosito/flutter-action) are governed by their own terms.
+
+name: CI
+
+on:
+  push:
+    branches: [ "claude/peaceful-cannon-ktbz8d", "main" ]
+  pull_request:
+    branches: [ "claude/peaceful-cannon-ktbz8d", "main" ]
+
+jobs:
+  core:
+    name: Pure-Dart core (analyze + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/quran_tasmee3_core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@9a04e6d73cca37bd455e0608d7e5092f881fd603
+      - name: Install dependencies
+        run: dart pub get
+      - name: Analyze
+        run: dart analyze
+      - name: Test
+        run: dart test
+
+  app:
+    name: Flutter app (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Generate stubs for gitignored files
+        run: |
+          # firebase_options.dart is gitignored (no real credentials committed).
+          # Generate a minimal stub so flutter analyze can resolve the import.
+          cat > lib/firebase_options.dart << 'STUB'
+          // CI stub — no credentials. Real file is gitignored.
+          import 'package:firebase_core/firebase_core.dart';
+          abstract class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform =>
+                throw UnimplementedError('CI stub — not for runtime use');
+          }
+          STUB
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+      - name: Test
+        run: flutter test

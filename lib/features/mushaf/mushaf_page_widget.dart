@@ -201,7 +201,13 @@ class _MushafPageWidgetState extends State<MushafPageWidget> {
             child: FutureBuilder<bool>(
               future: _fontReady,
               builder: (context, snap) {
-                final fontReady = snap.data ?? false;
+                // If the page font was already preloaded, treat it as ready on
+                // the FIRST frame (don't wait for the Future to resolve) — that
+                // first fontReady=false frame rendered the code_v2 PUA glyphs in
+                // the fallback font, i.e. the garbled "layer" seen before the
+                // real page during a swipe.
+                final fontReady =
+                    snap.data ?? PageFontLoader.isLoaded(widget.pageNumber);
                 if (lines.isEmpty) return const SizedBox.shrink();
                 // Case B: the opening page of Al-Fatiha / Al-Baqarah uses the
                 // full-page ornate frame (name + ayah-count cartouches).

@@ -22,7 +22,7 @@ android {
         applicationId = "com.qurantasmee3.quran_tasmee3"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23 // Firebase Auth requires API 23+
+        minSdk = flutter.minSdkVersion // Firebase Auth requires API 23+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -35,6 +35,8 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+
 }
 
 kotlin {

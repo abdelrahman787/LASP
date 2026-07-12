@@ -6,7 +6,8 @@
     <application
         android:label="quran_tasmee3"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowNativeHeapPointerTagging="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,6 +35,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Use the Skia renderer instead of Impeller. Impeller (Vulkan) has
+             slow text rasterization on many devices; the mushaf page draws ~150
+             complex Arabic glyphs, which was the page-swipe RASTER cost. Skia's
+             mature glyph-atlas caching makes that draw far cheaper. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
